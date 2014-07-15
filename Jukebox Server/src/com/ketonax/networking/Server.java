@@ -14,17 +14,17 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import com.ketonax.constants.Networking;
+import com.ketonax.constants.CommunicationConstants;
 import com.ketonax.station.Station;
 import com.ketonax.station.StationException;
 
 public class Server {
 
 	/* Variables */
-	static ArrayList<SocketAddress> allUSers = new ArrayList<SocketAddress>();
+	static ArrayList<SocketAddress> allUsers = new ArrayList<SocketAddress>();
 	static Queue<Station> stationList = null;
 	static Map<String, Station> stationMap = null;
-	static Map<SocketAddress, Station> creatorMap = null;
+	static Map<SocketAddress, Station> currentStationMap = null;
 
 	static DatagramSocket udpServerSocket = null;
 
@@ -34,7 +34,7 @@ public class Server {
 
 		stationList = new LinkedList<Station>();
 		stationMap = new HashMap<String, Station>();
-		creatorMap = new HashMap<SocketAddress, Station>();
+		currentStationMap = new HashMap<SocketAddress, Station>();
 
 		try {
 			int serverPort = AssigningService.assignPortNumber();
@@ -43,7 +43,7 @@ public class Server {
 			while (true) {
 				/* Listen for incoming commands */
 				// Receive packet
-				byte[] receiveData = new byte[Networking.DATA_LIMIT_SIZE];
+				byte[] receiveData = new byte[CommunicationConstants.DATA_LIMIT_SIZE];
 				DatagramPacket receivePacket = new DatagramPacket(receiveData,
 						receiveData.length);
 				udpServerSocket.receive(receivePacket);
@@ -58,7 +58,11 @@ public class Server {
 				if (userMessage.contains(",")) {
 					String messageArray[] = userMessage.split(",");
 
-					if (messageArray[0].equals(Networking.CREATE_STATION_CMD)) {
+					if (messageArray[0].equals(CommunicationConstants.SERVER_CONNECT_CMD)) {
+						allUsers.add(userSocketAddress);
+						sendStationList(userSocketAddress);
+					} else if (messageArray[0]
+							.equals(CommunicationConstants.CREATE_STATION_CMD)) {
 						String stationName = messageArray[1];
 
 						try {
@@ -66,7 +70,7 @@ public class Server {
 						} catch (ServerException e) {
 							System.err.println(e.getMessage());
 						}
-					} else if (messageArray[0].equals(Networking.ADD_SONG_CMD)) {
+					} else if (messageArray[0].equals(CommunicationConstants.ADD_SONG_CMD)) {
 
 						String stationName = messageArray[1];
 						String songName = messageArray[2];
@@ -80,27 +84,34 @@ public class Server {
 						} catch (StationException e) {
 							System.err.println(e.getMessage());
 						}
-					} else if (messageArray[0].equals(Networking.LEAVE_STATION_CMD)) {
+					} else if (messageArray[0]
+							.equals(CommunicationConstants.LEAVE_STATION_CMD)) {
 
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
+						if (currentStationMap.containsKey(userSocketAddress))
+							currentStationMap.remove(userSocketAddress);
 
 						try {
 							targetStation.removeUser(userSocketAddress);
 						} catch (StationException e) {
 							System.err.println(e.getMessage());
 						}
-					} else if (messageArray[0].equals(Networking.JOIN_STATION_CMD)) {
+					} else if (messageArray[0]
+							.equals(CommunicationConstants.JOIN_STATION_CMD)) {
 
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
+						currentStationMap.put(userSocketAddress, targetStation);
 
 						try {
 							targetStation.addUser(userSocketAddress);
+							targetStation.sendPlaylist(userSocketAddress);
 						} catch (StationException e) {
 							System.err.println(e.getMessage());
 						}
-					} else if (messageArray[0].equals(Networking.GET_PLAYLIST_CMD)) {
+					} else if (messageArray[0]
+							.equals(CommunicationConstants.GET_PLAYLIST_CMD)) {
 
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
@@ -110,9 +121,13 @@ public class Server {
 								+ userMessage + "\" passed to the server from"
 								+ userSocketAddress);
 					}
-				} else if (userMessage.equals(Networking.EXIT_JUKEBOX_NOTIFIER)) {
-					allUSers.remove(userSocketAddress);
-				} else if (userMessage.equals(Networking.STATION_LIST_REQUEST_CMD)) {
+				} else if (userMessage.equals(CommunicationConstants.EXIT_JUKEBOX_NOTIFIER)) {
+					if (allUsers.contains(userSocketAddress))
+						allUsers.remove(userSocketAddress);
+					if (currentStationMap.containsKey(userSocketAddress))
+						currentStationMap.remove(userSocketAddress);
+				} else if (userMessage
+						.equals(CommunicationConstants.STATION_LIST_REQUEST_CMD)) {
 
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
@@ -151,24 +166,23 @@ public class Server {
 			SocketAddress userAddress) throws ServerException {
 		/** Creates a new Station and runs it in a new thread. */
 
-		if(creatorMap.containsKey(userAddress)){
-			Station oldStation = creatorMap.get(userAddress);
-			log("Test");
-			
+		if (currentStationMap.containsKey(userAddress)) {
+			Station oldStation = currentStationMap.get(userAddress);
+
 			try {
 				oldStation.removeUser(userAddress);
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
 			}
-			
-			creatorMap.remove(userAddress);
+
+			currentStationMap.remove(userAddress);
 		}
-		
+
 		Station station = new Station(stationName, userAddress, udpServerSocket);
 
 		// Add user to ALL_USERS list
-		if (!allUSers.contains(userAddress))
-			allUSers.add(userAddress);
+		if (!allUsers.contains(userAddress))
+			allUsers.add(userAddress);
 
 		if (!stationList.contains(station)
 				&& !stationMap.containsKey(station.getName())) {
@@ -178,15 +192,15 @@ public class Server {
 		} else
 			throw new ServerException(station
 					+ " station already on stationList.");
-		
-		creatorMap.put(userAddress, station);
+
+		currentStationMap.put(userAddress, station);
 		sendStationAddedNotifier(station);
 	}
 
 	@SuppressWarnings("unused")
 	private static void sendStationList() throws IOException {
 		/** Sends the a list of the station names to all users */
-		for (SocketAddress sa : allUSers)
+		for (SocketAddress sa : allUsers)
 			sendStationList(sa);
 	}
 
@@ -218,7 +232,7 @@ public class Server {
 			String name = s.getName();
 
 			// Create data string and convert it to bytes
-			data = Networking.STATION_LIST_REQUEST_RESPONSE + "," + name;
+			data = CommunicationConstants.STATION_LIST_NOTIFIER + "," + name;
 			sendData = data.getBytes();
 
 			// Send data packet
@@ -235,8 +249,9 @@ public class Server {
 	private static void sendStationKilledNotifier(Station station) {
 		/** Sends a notifier that a station has been killed */
 
-		String[] elements = {Networking.STATION_KILLED_NOTIFIER, station.getName()};
-		String message = MessageBuilder.buildMessage(elements);
+		String[] elements = { CommunicationConstants.STATION_KILLED_NOTIFIER,
+				station.getName() };
+		String message = MessageBuilder.buildMessage(elements, CommunicationConstants.SEPARATOR_STRING);
 		sendNotification(message);
 	}
 
@@ -246,14 +261,15 @@ public class Server {
 		 * includes the station name.
 		 */
 
-		String data = Networking.STATION_ADDED_NOTIFIER + "," + station.getName();
+		String data = CommunicationConstants.STATION_ADDED_NOTIFIER + ","
+				+ station.getName();
 		sendNotification(data);
 	}
 
 	private static void sendNotification(String message) {
 		/** Send message to all devices in allUsers */
-		
-		for (SocketAddress sa : allUSers) {
+
+		for (SocketAddress sa : allUsers) {
 
 			// Parse user socket address (sa)
 			String userAddress[] = sa.toString().split(":");
