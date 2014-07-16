@@ -1,38 +1,34 @@
 package com.ketonax.jukebox;
 
-import android.app.Activity;
-
 import android.app.ActionBar;
+import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentManager;
-import android.os.AsyncTask;
-import android.os.Build;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
+import android.support.v4.widget.DrawerLayout;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.support.v4.widget.DrawerLayout;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import com.google.android.gms.ads.identifier.AdvertisingIdClient;
-import com.google.android.gms.auth.GooglePlayServicesAvailabilityException;
-import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
-import com.google.android.gms.common.GooglePlayServicesRepairableException;
-import com.ketonax.Networking.MessageBuilder;
-import com.ketonax.Networking.Networking;
+import com.ketonax.Constants.AppConstants;
+import com.ketonax.Constants.ServiceConstants;
+import com.ketonax.Networking.NetworkingService;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-
-import com.google.android.gms.ads.identifier.AdvertisingIdClient.Info;
 
 
 public class MainActivity extends Activity
@@ -50,8 +46,47 @@ public class MainActivity extends Activity
 
     private DatagramSocket udpSocket = null;
     EditText createStationEdit = null;
-    String currentStation = null;
-    String userID = null;
+    Messenger mService;
+    boolean mIsBound;
+
+    final Messenger mMessenger = new Messenger(new IncomingHandler());
+
+    private ServiceConnection mConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mService = new Messenger(service);
+
+            try {
+                Message msg = Message.obtain(null, AppConstants.MSG_REGISTER_CLIENT);
+                msg.replyTo = mMessenger;
+                mService.send(msg);
+            } catch (RemoteException e) {
+                /* Service has crashed before anything can be done */
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+
+        }
+    };
+
+    /* Receive messages from client */
+    public class IncomingHandler extends Handler {
+        String receivedMessage = null;
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case AppConstants.MSG_REGISTER_CLIENT:
+                    mService = msg.replyTo;
+                    break;
+                case AppConstants.MSG_UNREGISTER_CLIENT:
+                    mService = null;
+            }
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +95,7 @@ public class MainActivity extends Activity
 
         /* Check for content in savedInstanceState */
         if (savedInstanceState != null) {
-            currentStation = savedInstanceState.getString(MainConstants.CURRENT_STATION);
+
         }
 
         mNavigationDrawerFragment = (NavigationDrawerFragment)
@@ -75,8 +110,19 @@ public class MainActivity extends Activity
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
-        outState.putString(MainConstants.CURRENT_STATION, currentStation);
         super.onSaveInstanceState(outState);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        bindService();
+    }
+
+    @Override
+    protected void onStop() {
+        unbindService();
+        super.onStop();
     }
 
     @Override
@@ -150,27 +196,60 @@ public class MainActivity extends Activity
         return super.onOptionsItemSelected(item);
     }
 
+
+    /* Method called when Join Station action button is pressed */
+    static public void joinStation() {
+        Log.d(AppConstants.APP_TAG, "Join station button pressed.");
+    }
+
+    /**
+     * Method called when Create button is pressed
+     */
     public void createStation(View view) {
-        /** Method called when Create button is pressed */
-        String stationName = null;
+        String stationToCreate = null;
         String message = null;
-        UDP_Sender sender = new UDP_Sender();
 
         createStationEdit = (EditText) findViewById(R.id.station_name_entry);
-        stationName = createStationEdit.getText().toString();
+        stationToCreate = createStationEdit.getText().toString();
 
-        if (stationName.isEmpty())
+        if (stationToCreate.isEmpty())
             Toast.makeText(getApplicationContext(), "Please enter a name for the station.", Toast.LENGTH_SHORT).show();
         else {
-            String[] elements = {Networking.CREATE_STATION_CMD, stationName};
-            message = MessageBuilder.buildMessage(elements);
-            sender.send(message);
-
-            /* Set the current station */
-            currentStation = stationName;
+            /* Send stationToCreate to service */
+            try {
+                Message msg = Message.obtain(null, AppConstants.CREATE_STATION_CMD);
+                //msg.replyTo = mMessenger;
+                Bundle bundle = new Bundle();
+                bundle.putString(ServiceConstants.CREATE_STATION_CMD, stationToCreate);
+                msg.setData(bundle);
+                mService.send(msg);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         }
 
         createStationEdit.setText(null);
+    }
+
+    /* Private Methods */
+    private void bindService() {
+        /* Establish a connection with the service */
+        bindService(new Intent(this,
+                NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void unbindService() {
+        if(mIsBound){
+            if(mService != null){
+                try{
+                    Message msg = Message.obtain(null, AppConstants.MSG_UNREGISTER_CLIENT);
+                    msg.replyTo = mMessenger;
+                    mService.send(msg);
+                }catch(RemoteException e){
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     /**
@@ -288,44 +367,6 @@ public class MainActivity extends Activity
             super.onAttach(activity);
             ((MainActivity) activity).onSectionAttached(
                     getArguments().getInt(ARG_SECTION_NUMBER));
-        }
-    }
-
-    /*Used for sending data to Jukebox Server*/
-    public class UDP_Sender {
-        private byte[] sendData = null;
-        private AsyncTask<Void, Void, Void> asyncSender;
-        private Boolean keepRunning = true;
-        private InetAddress serverAddress = null;
-        private DatagramPacket sendPacket = null;
-        private Info adInfo = null;
-
-        public void send(final String message) {
-            asyncSender = new AsyncTask<Void, Void, Void>() {
-                @Override
-                protected Void doInBackground(Void... voids) {
-
-                    try {
-                        serverAddress = InetAddress.getByName(Networking.SERVER_IP_STRING);
-                        udpSocket = Networking.getSocket();
-                        udpSocket.connect(serverAddress, Networking.SERVER_PORT);
-                        sendData = message.getBytes();
-                        sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, Networking.SERVER_PORT);
-                        udpSocket.send(sendPacket);
-                    } catch (SocketException e) {
-                        e.printStackTrace();
-                    } catch (UnknownHostException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    return null;
-                }
-            };
-
-            if (Build.VERSION.SDK_INT >= 11)
-                asyncSender.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-            else asyncSender.execute();
         }
     }
 }

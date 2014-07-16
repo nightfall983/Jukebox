@@ -12,7 +12,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.ketonax.constants.CommunicationConstants;
+import com.ketonax.constants.Networking;
 import com.ketonax.networking.MessageBuilder;
 
 /* TODO implement ping function to check if a device is still connected.
@@ -115,9 +115,16 @@ public class Station implements Runnable {
 
 	public void addUser(SocketAddress userAddress) throws StationException {
 		/** This function adds a user to the station user list. */
-		if (!userList.contains(userAddress))
+		if (!userList.contains(userAddress)) {
 			userList.add(userAddress);
-		else
+			
+			try {
+				sendPlaylist(userAddress);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} else
 			throw new StationException("User is already on the list");
 		log("User at \"" + userAddress + "\" has joined.");
 	}
@@ -135,8 +142,10 @@ public class Station implements Runnable {
 					+ ") list.");
 		userList.remove(userAddress);
 
-		String notification = CommunicationConstants.USER_REMOVED_NOTIFIER
-				+ "," + userAddress;
+		String[] elements = { Networking.USER_REMOVED_NOTIFIER,
+				stationName, userAddress.toString() };
+		String notification = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
 		sendToAll(notification);
 		log("User at " + userAddress + " has been removed.");
 	}
@@ -164,7 +173,7 @@ public class Station implements Runnable {
 		songSourceMap.put(songName, userAddress);
 		songLengthMap.put(songName, songLength);
 
-		String notification = CommunicationConstants.SONG_ADDED_NOTIFIER + ","
+		String notification = Networking.SONG_ADDED_NOTIFIER + ","
 				+ stationName + "," + songName;
 		sendToAll(notification);
 		log(songName + " has been added to the station.");
@@ -189,8 +198,10 @@ public class Station implements Runnable {
 		songSourceMap.remove(songName);
 		songLengthMap.remove(songName);
 
-		String notification = CommunicationConstants.SONG_REMOVED_NOTIFIER
-				+ "," + songName;
+		String[] elements = { Networking.SONG_REMOVED_NOTIFIER,
+				stationName, songName };
+		String notification = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
 		sendToAll(notification);
 		log(songName + " has been removed from the station");
 	}
@@ -222,10 +233,10 @@ public class Station implements Runnable {
 		 * sends the socket address of the user to the devices.
 		 */
 
-		String[] elements = { CommunicationConstants.USER_ADDED_NOTIFIER,
+		String[] elements = { Networking.USER_ADDED_NOTIFIER,
 				stationName, addedUserSocketAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
-				CommunicationConstants.SEPARATOR_STRING);
+				Networking.SEPERATOR);
 		sendToAll(notification);
 		log("User at " + addedUserSocketAddress
 				+ " has been added to the station");
@@ -237,10 +248,9 @@ public class Station implements Runnable {
 		 * the queue.
 		 */
 
-		String[] elements = { CommunicationConstants.SONG_ADDED_NOTIFIER,
-				songName };
+		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
-				CommunicationConstants.SEPARATOR_STRING);
+				Networking.SEPERATOR);
 		sendToAll(notification);
 	}
 
@@ -250,10 +260,9 @@ public class Station implements Runnable {
 		 * to the queue.
 		 */
 
-		String[] elements = { CommunicationConstants.SONG_REMOVED_NOTIFIER,
-				songName };
+		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
-				CommunicationConstants.SEPARATOR_STRING);
+				Networking.SEPERATOR);
 		sendToAll(notification);
 	}
 
@@ -268,10 +277,10 @@ public class Station implements Runnable {
 
 		String data = null;
 		for (String s : songQueue) {
-			String[] elements = { CommunicationConstants.SONG_ON_LIST_RESPONSE,
+			String[] elements = { Networking.SONG_ON_LIST_RESPONSE,
 					stationName, s };
 			data = MessageBuilder.buildMessage(elements,
-					CommunicationConstants.SEPARATOR_STRING);
+					Networking.SEPERATOR);
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -290,8 +299,10 @@ public class Station implements Runnable {
 
 		String data = null;
 		for (SocketAddress user : userList) {
-			data = CommunicationConstants.USER_ON_LIST_RESPONSE + ","
-					+ user.toString();
+			String[] elements = { Networking.USER_ON_LIST_RESPONSE,
+					stationName, user.toString() };
+			data = MessageBuilder.buildMessage(elements,
+					Networking.SEPERATOR);
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -384,18 +395,17 @@ public class Station implements Runnable {
 			address = address.replaceFirst("/", "");
 
 		/* Send command to device to play song */
-		String[] commandElements = { CommunicationConstants.PLAY_SONG_CMD,
-				songName };
+		String[] commandElements = { Networking.PLAY_SONG_CMD, songName };
 		String command = MessageBuilder.buildMessage(commandElements,
-				CommunicationConstants.SEPARATOR_STRING);
+				Networking.SEPERATOR);
 		sendToUser(command, songSource);
 
 		/* Send notification to all devices of current song playing */
 		String[] notificationElements = {
-				CommunicationConstants.CURRENTLY_PLAYING_NOTIFIER, songName,
+				Networking.CURRENTLY_PLAYING_NOTIFIER, stationName, songName,
 				songSource.toString() };
 		String notification = MessageBuilder.buildMessage(notificationElements,
-				CommunicationConstants.SEPARATOR_STRING);
+				Networking.SEPERATOR);
 		sendToAll(notification);
 
 		/* Display station queue status */

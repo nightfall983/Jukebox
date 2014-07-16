@@ -14,7 +14,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import com.ketonax.constants.CommunicationConstants;
+import com.ketonax.constants.Networking;
 import com.ketonax.station.Station;
 import com.ketonax.station.StationException;
 
@@ -43,7 +43,7 @@ public class Server {
 			while (true) {
 				/* Listen for incoming commands */
 				// Receive packet
-				byte[] receiveData = new byte[CommunicationConstants.DATA_LIMIT_SIZE];
+				byte[] receiveData = new byte[Networking.DATA_LIMIT_SIZE];
 				DatagramPacket receivePacket = new DatagramPacket(receiveData,
 						receiveData.length);
 				udpServerSocket.receive(receivePacket);
@@ -58,11 +58,12 @@ public class Server {
 				if (userMessage.contains(",")) {
 					String messageArray[] = userMessage.split(",");
 
-					if (messageArray[0].equals(CommunicationConstants.SERVER_CONNECT_CMD)) {
+					if (messageArray[0].equals(Networking.SERVER_CONNECT_CMD)) {
+
 						allUsers.add(userSocketAddress);
 						sendStationList(userSocketAddress);
 					} else if (messageArray[0]
-							.equals(CommunicationConstants.CREATE_STATION_CMD)) {
+							.equals(Networking.CREATE_STATION_CMD)) {
 						String stationName = messageArray[1];
 
 						try {
@@ -70,22 +71,26 @@ public class Server {
 						} catch (ServerException e) {
 							System.err.println(e.getMessage());
 						}
-					} else if (messageArray[0].equals(CommunicationConstants.ADD_SONG_CMD)) {
-
+					} else if (messageArray[0].equals(Networking.ADD_SONG_CMD)) {
 						String stationName = messageArray[1];
 						String songName = messageArray[2];
 						int songLength = Integer.parseInt(messageArray[3]);
 
 						Station targetStation = stationMap.get(stationName);
-
-						try {
-							targetStation.addSong(userSocketAddress, songName,
-									songLength);
-						} catch (StationException e) {
-							System.err.println(e.getMessage());
+						if (targetStation == null) {
+							log(userSocketAddress
+									+ " attempted to add a song to nonexistent station : "
+									+ stationName);
+						} else {
+							try {
+								targetStation.addSong(userSocketAddress,
+										songName, songLength);
+							} catch (StationException e) {
+								System.err.println(e.getMessage());
+							}
 						}
 					} else if (messageArray[0]
-							.equals(CommunicationConstants.LEAVE_STATION_CMD)) {
+							.equals(Networking.LEAVE_STATION_CMD)) {
 
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
@@ -98,20 +103,28 @@ public class Server {
 							System.err.println(e.getMessage());
 						}
 					} else if (messageArray[0]
-							.equals(CommunicationConstants.JOIN_STATION_CMD)) {
+							.equals(Networking.JOIN_STATION_CMD)) {
 
 						String stationName = messageArray[1];
-						Station targetStation = stationMap.get(stationName);
-						currentStationMap.put(userSocketAddress, targetStation);
 
-						try {
-							targetStation.addUser(userSocketAddress);
-							targetStation.sendPlaylist(userSocketAddress);
-						} catch (StationException e) {
-							System.err.println(e.getMessage());
+						if (!stationMap.containsKey(stationName)) {
+							log("User at "
+									+ userSocketAddress
+									+ " attempted to join nonexistent station: "
+									+ stationName);
+						} else {
+							Station targetStation = stationMap.get(stationName);
+							currentStationMap.put(userSocketAddress,
+									targetStation);
+
+							try {
+								targetStation.addUser(userSocketAddress);
+							} catch (StationException e) {
+								System.err.println(e.getMessage());
+							}
 						}
 					} else if (messageArray[0]
-							.equals(CommunicationConstants.GET_PLAYLIST_CMD)) {
+							.equals(Networking.GET_PLAYLIST_CMD)) {
 
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
@@ -121,13 +134,20 @@ public class Server {
 								+ userMessage + "\" passed to the server from"
 								+ userSocketAddress);
 					}
-				} else if (userMessage.equals(CommunicationConstants.EXIT_JUKEBOX_NOTIFIER)) {
+				} else if (userMessage.equals(Networking.SERVER_CONNECT_CMD)) {
+
+					if (!allUsers.contains(userSocketAddress)) {
+						allUsers.add(userSocketAddress);
+						log(userSocketAddress + " has connected.");
+					}
+				} else if (userMessage.equals(Networking.EXIT_JUKEBOX_NOTIFIER)) {
+
 					if (allUsers.contains(userSocketAddress))
 						allUsers.remove(userSocketAddress);
 					if (currentStationMap.containsKey(userSocketAddress))
 						currentStationMap.remove(userSocketAddress);
 				} else if (userMessage
-						.equals(CommunicationConstants.STATION_LIST_REQUEST_CMD)) {
+						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
 
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
@@ -170,6 +190,8 @@ public class Server {
 			Station oldStation = currentStationMap.get(userAddress);
 
 			try {
+				stationList.remove(oldStation);
+				stationMap.remove(stationName, oldStation);
 				oldStation.removeUser(userAddress);
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
@@ -185,7 +207,8 @@ public class Server {
 			allUsers.add(userAddress);
 
 		if (!stationList.contains(station)
-				&& !stationMap.containsKey(station.getName())) {
+				&& !stationMap.containsValue(station)) {
+
 			stationList.add(station);
 			stationMap.put(station.getName(), station);
 			new Thread(station).start();// Start new station thread
@@ -232,7 +255,7 @@ public class Server {
 			String name = s.getName();
 
 			// Create data string and convert it to bytes
-			data = CommunicationConstants.STATION_LIST_NOTIFIER + "," + name;
+			data = Networking.STATION_LIST_NOTIFIER + "," + name;
 			sendData = data.getBytes();
 
 			// Send data packet
@@ -249,9 +272,10 @@ public class Server {
 	private static void sendStationKilledNotifier(Station station) {
 		/** Sends a notifier that a station has been killed */
 
-		String[] elements = { CommunicationConstants.STATION_KILLED_NOTIFIER,
+		String[] elements = { Networking.STATION_KILLED_NOTIFIER,
 				station.getName() };
-		String message = MessageBuilder.buildMessage(elements, CommunicationConstants.SEPARATOR_STRING);
+		String message = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
 		sendNotification(message);
 	}
 
@@ -261,7 +285,7 @@ public class Server {
 		 * includes the station name.
 		 */
 
-		String data = CommunicationConstants.STATION_ADDED_NOTIFIER + ","
+		String data = Networking.STATION_ADDED_NOTIFIER + ","
 				+ station.getName();
 		sendNotification(data);
 	}

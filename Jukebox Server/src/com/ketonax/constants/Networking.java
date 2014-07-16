@@ -1,6 +1,6 @@
 package com.ketonax.constants;
 
-public final class CommunicationConstants {
+public final class Networking {
 	/* Commands To Devices */
 	public static final String PLAY_SONG_CMD = "/play_song";
 
@@ -33,7 +33,7 @@ public final class CommunicationConstants {
 	public static final String USER_ON_LIST_RESPONSE = "/user_on_list";
 	
     /* Separator string */
-    public static final String SEPARATOR_STRING = ",";
+    public static final String SEPERATOR = ",";
     
     /* Message identifier */
     public static final String JUKEBOX_MESSAGE_IDENTIFIER = "/";
