@@ -6,10 +6,9 @@ package com.ketonax.Constants;
 public final class AppConstants {
     /* Constants */
     public final static String APP_TAG = "com.ketonax.jukebox";
-    public final static String SERVER_MESSAGE = "server message";
-
-    /* Broadcast Actions */
-    public final static String ACTION_SERVER_MESSAGE_RECEIVED = "server message received action";
+    public final static String STATION_LIST_KEY = "station list";
+    public final static String STATION_ADAPTER_KEY = "station adapter";
+    public final static String CURRENT_STATION_KEY = "current station";
 
     /* Message Integer Constants */
     public final static int MSG_REGISTER_CLIENT = 1;
@@ -40,6 +39,6 @@ public final class AppConstants {
     public static final int CURRENTLY_PLAYING_NOTIFIER = 18;
 
     /* Response to devices */
-    public static final int SONG_ON_LIST_RESPONSE = 19;
+    public static final int STATION_LIST_REQUEST_RESPONSE = 19;
     public static final int USER_ON_LIST_RESPONSE = 20;
 }

@@ -103,6 +103,10 @@ public class Station implements Runnable {
 	public boolean isEmpty() {
 		return userList.isEmpty();
 	}
+	
+	public boolean hasUser(SocketAddress userSocketAddress){
+		return userList.contains(userSocketAddress);
+	}
 
 	@Override
 	public String toString() {

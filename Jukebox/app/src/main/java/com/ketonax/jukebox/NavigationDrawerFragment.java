@@ -250,8 +250,7 @@ public class NavigationDrawerFragment extends Fragment {
         }
 
         if (item.getItemId() == R.id.action_join) {
-            MainActivity.joinStation();
-            Toast.makeText(getActivity(), "Start Join Station Activity", Toast.LENGTH_SHORT).show();
+            //MainActivity.joinStation();
             return true;
         }
 

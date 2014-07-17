@@ -10,9 +10,8 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.widget.Toast;
+import android.util.Log;
 
-import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.ketonax.Constants.AppConstants;
 import com.ketonax.Constants.ServiceConstants;
 
@@ -58,17 +57,18 @@ public class NetworkingService extends Service {
         return mMessenger.getBinder();
     }
 
+
+
     @Override
     public void onCreate() {
         super.onCreate();
-
-        receiver = new Receiver();
-        receiver.start();
     }
 
     @Override
     public void onDestroy() {
+        keepRunning = false;
         super.onDestroy();
+
     }
 
     /*Used for sending data to Jukebox Server*/
@@ -114,17 +114,9 @@ public class NetworkingService extends Service {
 
         @Override
         public void run() {
-            /* Connect to server */
-            String[] elements = {ServiceConstants.SERVER_CONNECT_CMD};
-            String messageToSend = MessageBuilder.buildMessage(elements, ServiceConstants.SEPARATOR);
-            byte[] sendData = messageToSend.getBytes();
-            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, serverPort);
-
-            try {
-                udpSocket.send(sendPacket);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            /* Request the current station list */
+            String command = ServiceConstants.STATION_LIST_REQUEST_CMD;
+            sender.send(command);
 
             while (keepRunning) {
                 byte[] receiveData = new byte[ServiceConstants.DATA_LIMIT_SIZE];
@@ -136,7 +128,7 @@ public class NetworkingService extends Service {
                     e.printStackTrace();
                 }
 
-                String message = new String(receivePacket.getData());
+                String message = new String(receivePacket.getData()).trim();
 
                 /* TODO parse messages and respond accordingly */
                 if (message.startsWith(ServiceConstants.JUKEBOX_MESSAGE_IDENTIFIER)) {
@@ -152,19 +144,42 @@ public class NetworkingService extends Service {
                             } catch (RemoteException e) {
                                 e.printStackTrace();
                             }
-                        } else if (msgArray[0].equals(ServiceConstants.STATION_LIST_NOTIFIER)) {
-                            /* Clear current station list for brand new list */
+                        } else if (msgArray[0].equals(ServiceConstants.STATION_LIST_REQUEST_RESPONSE)) {
                             String stationName = msgArray[1];
-                            stationList.add(stationName);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(ServiceConstants.STATION_LIST_REQUEST_RESPONSE, stationName);
+                            Message msg = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_RESPONSE);
+                            msg.setData(bundle);
+                            try {
+                                mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(ServiceConstants.STATION_KILLED_NOTIFIER)) {
                             String stationName = msgArray[1];
-                            stationList.remove(stationName);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(ServiceConstants.STATION_KILLED_NOTIFIER, stationName);
+                            Message msg = Message.obtain(null, AppConstants.STATION_KILLED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(ServiceConstants.STATION_ADDED_NOTIFIER)) {
                             String stationName = msgArray[1];
-                            stationList.add(stationName);
-                        } else if (msgArray[0].equals(ServiceConstants.SONG_ON_LIST_RESPONSE)) {
-                            //TODO
-                        } else if (msgArray[0].equals(ServiceConstants.SONG_ADDED_NOTIFIER)) {
+                            if (stationList.contains(stationName))
+                                stationList.add(stationName);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(ServiceConstants.STATION_ADDED_NOTIFIER, stationName);
+                            Message msg = Message.obtain(null, AppConstants.STATION_ADDED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        }  else if (msgArray[0].equals(ServiceConstants.SONG_ADDED_NOTIFIER)) {
                             String songName = msgArray[1];
                             songList.add(songName);
                         } else if (msgArray[0].equals(ServiceConstants.SONG_REMOVED_NOTIFIER)) {
@@ -251,6 +266,9 @@ public class NetworkingService extends Service {
             } catch (UnknownHostException e) {
                 e.printStackTrace();
             }
+
+            receiver = new Receiver();
+            receiver.start();
         }
 
         @Override
@@ -262,23 +280,45 @@ public class NetworkingService extends Service {
                 case AppConstants.MSG_UNREGISTER_CLIENT:
                     mClient = null;
                     break;
-                case AppConstants.CREATE_STATION_CMD:
+                case AppConstants.CREATE_STATION_CMD: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(ServiceConstants.CREATE_STATION_CMD);
                     String[] elements = {ServiceConstants.CREATE_STATION_CMD, stationName};
                     messageToSend = MessageBuilder.buildMessage(elements, ServiceConstants.SEPARATOR);
                     sender.send(messageToSend);
-                    Toast.makeText(getApplicationContext(),messageToSend,Toast.LENGTH_SHORT).show();
+                    currentStation = stationName;
+                }
+                break;
+                case AppConstants.STATION_LIST_REQUEST_CMD: {
+                    //TODO
+                }
+                break;
+                case AppConstants.JOIN_STATION_CMD:{
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(ServiceConstants.JOIN_STATION_CMD);
+                    String[] elements = {ServiceConstants.JOIN_STATION_CMD, stationName};
+                    messageToSend = MessageBuilder.buildMessage(elements, ServiceConstants.SEPARATOR);
+                    sender.send(messageToSend);
+                    currentStation = stationName;
+                }
                     break;
-                case AppConstants.STATION_LIST_REQUEST_CMD:
-                    break;
-                case AppConstants.JOIN_STATION_CMD:
-                    break;
-                case AppConstants.LEAVE_STATION_CMD:
+                case AppConstants.LEAVE_STATION_CMD:{
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(ServiceConstants.LEAVE_STATION_CMD);
+                    String[] elements = {ServiceConstants.LEAVE_STATION_CMD, stationName};
+                    messageToSend = MessageBuilder.buildMessage(elements, ServiceConstants.SEPARATOR);
+                    sender.send(messageToSend);
+                }
                     break;
                 case AppConstants.ADD_SONG_CMD:
                     break;
                 case AppConstants.GET_PLAYLIST_CMD:
+                    break;
+                case AppConstants.EXIT_JUKEBOX_NOTIFIER:{
+                    Bundle bundle = msg.getData();
+                    String exitCommand = bundle.getString(ServiceConstants.EXIT_JUKEBOX_NOTIFIER);
+                    sender.send(exitCommand);
+                }
                     break;
             }
         }
