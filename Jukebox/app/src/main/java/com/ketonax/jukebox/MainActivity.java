@@ -28,7 +28,7 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import com.ketonax.Constants.AppConstants;
-import com.ketonax.Constants.ServiceConstants;
+import com.ketonax.Constants.Networking;
 import com.ketonax.Networking.MessageBuilder;
 import com.ketonax.Networking.NetworkingService;
 
@@ -39,11 +39,6 @@ public class MainActivity extends Activity
         implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
     static Messenger mService;
-    static ArrayAdapter<String> stationAdapter = null;
-    static ListView stationListView = null;
-    /* Jukebox Variables */
-    static ArrayList<String> stationList = new ArrayList<String>();
-    static String currentStation;
     final Messenger mMessenger = new Messenger(new IncomingHandler());
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
@@ -56,16 +51,15 @@ public class MainActivity extends Activity
                 mService.send(msg);
             } catch (RemoteException e) {
                 /* Service has crashed before anything can be done */
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
-
+            mIsBound = false;
         }
     };
-    EditText createStationEdit = null;
     boolean mIsBound;
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
@@ -76,6 +70,13 @@ public class MainActivity extends Activity
      */
     private CharSequence mTitle;
 
+    EditText createStationEdit = null;
+    static ArrayAdapter<String> stationAdapter;
+    static ListView stationListView;
+    static ArrayList<String> stationList = new ArrayList<String>();
+    static String currentStation;
+    JoinStationFragment jsFragment = null;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,7 +85,7 @@ public class MainActivity extends Activity
         /* Check for content in savedInstanceState */
         if (savedInstanceState != null) {
             stationList = savedInstanceState.getStringArrayList(AppConstants.STATION_LIST_KEY);
-            stationAdapter.addAll(stationList);
+            currentStation = savedInstanceState.getString(AppConstants.CURRENT_STATION_KEY);
         }
 
         mNavigationDrawerFragment = (NavigationDrawerFragment)
@@ -107,15 +108,14 @@ public class MainActivity extends Activity
     @Override
     protected void onStart() {
         super.onStart();
-        bindService();
+        //showStationListView();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        stationAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, android.R.id.text1);
-        stationAdapter.addAll(stationList);
-        showStationListView();
+        //stationAdapter.addAll(stationList);
+        doBindService();
     }
 
     @Override
@@ -126,9 +126,8 @@ public class MainActivity extends Activity
 
     @Override
     protected void onDestroy() {
+
         try {
-            if (currentStation != null)
-                leaveCurrentStation();
             exitJukebox();
             unbindService();
         } catch (Throwable t) {
@@ -136,7 +135,6 @@ public class MainActivity extends Activity
         }
         super.onDestroy();
     }
-
 
     @Override
     public void onNavigationDrawerItemSelected(int position) {
@@ -146,7 +144,7 @@ public class MainActivity extends Activity
         switch (position) {
             case 0:
                 fragmentManager.beginTransaction()
-                        .replace(R.id.container, CreateStationFragment.newInstance(position + 1))
+                        .replace(R.id.container, JoinStationFragment.newInstance(position + 1))
                         .commit();
                 break;
             case 1:
@@ -223,13 +221,13 @@ public class MainActivity extends Activity
             /* Send stationToCreate to service */
             try {
                 Message msg = Message.obtain(null, AppConstants.CREATE_STATION_CMD);
-                msg.replyTo = mMessenger;
                 Bundle bundle = new Bundle();
-                bundle.putString(ServiceConstants.CREATE_STATION_CMD, stationToCreate);
+                bundle.putString(Networking.CREATE_STATION_CMD, stationToCreate);
                 msg.setData(bundle);
+                msg.replyTo = mMessenger;
                 mService.send(msg);
             } catch (RemoteException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
             currentStation = stationToCreate;
         }
@@ -244,15 +242,15 @@ public class MainActivity extends Activity
 
         try {
             Message msg = Message.obtain(null, AppConstants.LEAVE_STATION_CMD);
-            msg.replyTo = mMessenger;
-            String[] elements = {ServiceConstants.LEAVE_STATION_CMD, currentStation};
-            String leaveCommand = MessageBuilder.buildMessage(elements, ServiceConstants.SEPARATOR);
+            String[] elements = {Networking.LEAVE_STATION_CMD, currentStation};
+            String leaveCommand = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
             Bundle bundle = new Bundle();
-            bundle.putString(ServiceConstants.LEAVE_STATION_CMD, currentStation);
+            bundle.putString(Networking.LEAVE_STATION_CMD, currentStation);
             msg.setData(bundle);
             mService.send(msg);
+            currentStation = null;
         } catch (RemoteException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         }
     }
 
@@ -261,16 +259,19 @@ public class MainActivity extends Activity
      */
     public void exitJukebox() {
 
+        leaveCurrentStation();
+
         try {
             Message msg = Message.obtain(null, AppConstants.EXIT_JUKEBOX_NOTIFIER);
-            msg.replyTo = mMessenger;
-            String command = ServiceConstants.EXIT_JUKEBOX_NOTIFIER;
+            String command = Networking.EXIT_JUKEBOX_NOTIFIER;
             Bundle bundle = new Bundle();
-            bundle.putString(ServiceConstants.EXIT_JUKEBOX_NOTIFIER, command);
+            bundle.putString(Networking.EXIT_JUKEBOX_NOTIFIER, command);
             msg.setData(bundle);
             mService.send(msg);
+            stationList.clear();
+            stationAdapter.clear();
         } catch (RemoteException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         }
     }
 
@@ -278,7 +279,13 @@ public class MainActivity extends Activity
      * This method displays the station list
      */
     public void showStationListView() {
-        stationListView = (ListView) findViewById(R.id.station_list_view);
+
+        ListView stationListView = (ListView) findViewById(R.id.station_list_view);
+        ArrayAdapter<String> stationAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, android.R.id.text1);
+        stationAdapter.addAll(stationList);
+
+        if(stationListView == null)
+            return;
         stationListView.setAdapter(stationAdapter);
         stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -287,17 +294,38 @@ public class MainActivity extends Activity
                 /* */
                 /* Send message to service to send JOIN_STATION_CMD */
                 String stationName = stationList.get(position);
-                Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                Bundle bundle = new Bundle();
-                bundle.putString(ServiceConstants.JOIN_STATION_CMD, stationName);
-                msg.setData(bundle);
 
-                try {
-                    mService.send(msg);
-                } catch (RemoteException e) {
-                    e.printStackTrace();
+                if (currentStation != null) {
+
+                    if (!currentStation.equals(stationName)) {
+                        currentStation = stationName;
+                        Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                        Bundle bundle = new Bundle();
+                        bundle.putString(Networking.JOIN_STATION_CMD, stationName);
+                        msg.setData(bundle);
+
+                        try {
+                            mService.send(msg);
+                        } catch (RemoteException e) {
+                            //e.printStackTrace();
+                        }
+                        Toast.makeText(getApplicationContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
+                    } else
+                        Toast.makeText(getApplicationContext(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
+                } else {
+                    currentStation = stationName;
+                    Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                    Bundle bundle = new Bundle();
+                    bundle.putString(Networking.JOIN_STATION_CMD, stationName);
+                    msg.setData(bundle);
+
+                    try {
+                        mService.send(msg);
+                    } catch (RemoteException e) {
+                        //e.printStackTrace();
+                    }
+                    Toast.makeText(getApplicationContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
                 }
-                Toast.makeText(getApplicationContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -305,10 +333,11 @@ public class MainActivity extends Activity
     /**
      * Private Methods
      */
-    private void bindService() {
+    private void doBindService() {
         /* Establish a connection with the service */
         bindService(new Intent(this,
                 NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
+        mIsBound = true;
     }
 
     private void unbindService() {
@@ -318,8 +347,9 @@ public class MainActivity extends Activity
                     Message msg = Message.obtain(null, AppConstants.MSG_UNREGISTER_CLIENT);
                     msg.replyTo = mMessenger;
                     mService.send(msg);
+                    mIsBound = false;
                 } catch (RemoteException e) {
-                    e.printStackTrace();
+                    //e.printStackTrace();
                 }
             }
         }
@@ -328,22 +358,22 @@ public class MainActivity extends Activity
     /**
      * A placeholder fragment containing a simple view.
      */
-    public static class CreateStationFragment extends Fragment {
+    public static class JoinStationFragment extends Fragment {
         /**
          * The fragment argument representing the section number for this
          * fragment.
          */
         private static final String ARG_SECTION_NUMBER = "section_number";
 
-        public CreateStationFragment() {
+        public JoinStationFragment() {
         }
 
         /**
          * Returns a new instance of this fragment for the given section
          * number.
          */
-        public static CreateStationFragment newInstance(int sectionNumber) {
-            CreateStationFragment fragment = new CreateStationFragment();
+        public static JoinStationFragment newInstance(int sectionNumber) {
+            JoinStationFragment fragment = new JoinStationFragment();
             Bundle args = new Bundle();
             args.putInt(ARG_SECTION_NUMBER, sectionNumber);
             fragment.setArguments(args);
@@ -353,21 +383,20 @@ public class MainActivity extends Activity
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
-            View rootView = inflater.inflate(R.layout.create_station_fragment, container, false);
-
+            View rootView = inflater.inflate(R.layout.join_station_fragment, container, false);
+            //((MainActivity) getActivity()).showStationListView();
             showStationListView(rootView);
             return rootView;
         }
 
-        @Override
-        public void onAttach(Activity activity) {
-            super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(ARG_SECTION_NUMBER));
-        }
+        public void showStationListView(final View rootView) {
 
-        private void showStationListView(View rootView) {
             stationListView = (ListView) rootView.findViewById(R.id.station_list_view);
+            stationAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
+            stationAdapter.addAll(stationList);
+
+            if(stationListView == null)
+                return;
             stationListView.setAdapter(stationAdapter);
             stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
@@ -376,19 +405,54 @@ public class MainActivity extends Activity
                 /* */
                 /* Send message to service to send JOIN_STATION_CMD */
                     String stationName = stationList.get(position);
-                    Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                    Bundle bundle = new Bundle();
-                    bundle.putString(ServiceConstants.JOIN_STATION_CMD, stationName);
-                    msg.setData(bundle);
 
-                    try {
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
+                    if (currentStation != null) {
+
+                        if (!currentStation.equals(stationName)) {
+                            currentStation = stationName;
+                            Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(Networking.JOIN_STATION_CMD, stationName);
+                            msg.setData(bundle);
+
+                            try {
+                                mService.send(msg);
+                            } catch (RemoteException e) {
+                                //e.printStackTrace();
+                            }
+                            Toast.makeText(rootView.getContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
+                        } else
+                            Toast.makeText(rootView.getContext(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
+                    } else {
+                        currentStation = stationName;
+                        Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                        Bundle bundle = new Bundle();
+                        bundle.putString(Networking.JOIN_STATION_CMD, stationName);
+                        msg.setData(bundle);
+
+                        try {
+                            mService.send(msg);
+                        } catch (RemoteException e) {
+                            //e.printStackTrace();
+                        }
+                        Toast.makeText(rootView.getContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
                     }
-                    Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
                 }
             });
+        }
+
+        @Override
+        public void onAttach(Activity activity) {
+            super.onAttach(activity);
+            ((MainActivity) activity).onSectionAttached(
+                    getArguments().getInt(ARG_SECTION_NUMBER));
+            //((MainActivity) activity).showStationListView();
+
+            try {
+
+            }catch (ClassCastException e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -483,31 +547,36 @@ public class MainActivity extends Activity
                     mService = null;
                 case AppConstants.STATION_LIST_REQUEST_RESPONSE: {
                     Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(ServiceConstants.STATION_LIST_REQUEST_RESPONSE);
-                    if (!stationList.contains(stationName)) {
-                        stationList.add(stationName);
-                        stationAdapter.addAll(stationName);
-                    }
-                    Toast.makeText(getApplicationContext(), "station list size: " + stationList.size(), Toast.LENGTH_SHORT).show();
-                    showStationListView();
-                }
-                break;
-                case AppConstants.STATION_ADDED_NOTIFIER: {
-                    Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(ServiceConstants.STATION_ADDED_NOTIFIER);
+                    String stationName = bundle.getString(Networking.STATION_LIST_REQUEST_RESPONSE);
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
                     }
-                    showStationListView();
+                    //showStationListView();
+                }
+                break;
+                case AppConstants.STATION_ADDED_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(Networking.STATION_ADDED_NOTIFIER);
+                    if (!stationList.contains(stationName)) {
+                        stationList.add(stationName);
+                        stationAdapter.add(stationName); //TODO test
+                    }
+                    //showStationListView();
                 }
                 break;
                 case AppConstants.STATION_KILLED_NOTIFIER: {
                     Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(ServiceConstants.STATION_KILLED_NOTIFIER);
-                    stationList.remove(stationName);
-                    stationAdapter.remove(stationName);
-                    //showStationListView();
+                    String stationName = bundle.getString(Networking.STATION_KILLED_NOTIFIER);
+
+                    /* Reset current station if it has been removed from the server*/
+                    if (currentStation != null) {
+                        if (currentStation.equals(stationName))
+                            currentStation = null;
+                        stationList.remove(stationName);
+                        stationAdapter.remove(stationName); //TODO test
+                        //showStationListView();
+                    }
                 }
                 break;
             }

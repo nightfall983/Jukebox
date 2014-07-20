@@ -26,6 +26,8 @@ public class Server {
 	static Map<String, Station> stationMap = null;
 	static Map<SocketAddress, Station> currentStationMap = null;
 
+	/* Networking */
+	static InetAddress groupAddress = null;
 	static DatagramSocket udpServerSocket = null;
 
 	public static void main(String[] args) {
@@ -37,12 +39,12 @@ public class Server {
 		currentStationMap = new HashMap<SocketAddress, Station>();
 
 		try {
-			int serverPort = AssigningService.assignPortNumber();
-			udpServerSocket = new DatagramSocket(serverPort);
+			udpServerSocket = new DatagramSocket(Networking.SERVER_PORT);
+			groupAddress = Networking.getGroupAddress();
 
 			while (true) {
 				/* Listen for incoming commands */
-				// Receive packet
+
 				byte[] receiveData = new byte[Networking.DATA_LIMIT_SIZE];
 				DatagramPacket receivePacket = new DatagramPacket(receiveData,
 						receiveData.length);
@@ -71,71 +73,26 @@ public class Server {
 						String songName = messageArray[2];
 						int songLength = Integer.parseInt(messageArray[3]);
 
-						Station targetStation = stationMap.get(stationName);
-						if (targetStation == null) {
-							log(userSocketAddress
-									+ " attempted to add a song to nonexistent station : "
-									+ stationName);
-						} else {
-							try {
-								targetStation.addSong(userSocketAddress,
-										songName, songLength);
-							} catch (StationException e) {
-								System.err.println(e.getMessage());
-							}
+						try {
+							addSongToStation(userSocketAddress, stationName,
+									songName, songLength);
+						} catch (ServerException e) {
+							System.out.println(e.getMessage());
 						}
 					} else if (messageArray[0]
 							.equals(Networking.LEAVE_STATION_CMD)) {
 
 						String stationName = messageArray[1];
-						log(stationName);
-						Station targetStation = stationMap.get(stationName);
-						if (currentStationMap.containsKey(userSocketAddress))
-							currentStationMap.remove(userSocketAddress);
-
-						try {
-							if (targetStation.hasUser(userSocketAddress))
-								targetStation.removeUser(userSocketAddress);
-						} catch (StationException e) {
-							System.err.println(e.getMessage());
-						}
+						leaveStation(userSocketAddress, stationName);
 					} else if (messageArray[0]
 							.equals(Networking.JOIN_STATION_CMD)) {
 
 						String stationName = messageArray[1];
-
-						if (!stationMap.containsKey(stationName)) {
-							log("User at "
-									+ userSocketAddress
-									+ " attempted to join nonexistent station: "
-									+ stationName);
-						} else {
-							Station targetStation = stationMap.get(stationName);
-
-							/* Check if user is already on the station */
-
-							/* Check for user's old station */
-							if (currentStationMap
-									.containsKey(userSocketAddress)) {
-								Station oldStation = currentStationMap
-										.get(userSocketAddress);
-								try {
-									oldStation.removeUser(userSocketAddress);
-
-									// Remove old pairing
-									currentStationMap.remove(userSocketAddress);
-								} catch (StationException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								}
-							}
-							currentStationMap.put(userSocketAddress,
-									targetStation);
-							try {
-								targetStation.addUser(userSocketAddress);
-							} catch (StationException e) {
-								System.err.println(e.getMessage());
-							}
+						try {
+							joinStation(userSocketAddress, stationName);
+						} catch (ServerException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
 						}
 					} else if (messageArray[0]
 							.equals(Networking.GET_PLAYLIST_CMD)) {
@@ -172,7 +129,7 @@ public class Server {
 					Station s = it.next();
 					if (s.hasStopped()) {
 						// Send updated station list to all users
-						//TODO Fix crash when a single user leaves
+						// TODO Fix crash when a single user leaves
 						sendStationKilledNotifier(s);
 						stationMap.remove(s.getName());
 						it.remove();
@@ -182,8 +139,6 @@ public class Server {
 					}
 				}
 			}
-		} catch (PortException e) {
-			System.err.println(e.getMessage());
 		} catch (SocketException e) {
 			System.err.println(e.getMessage());
 		} catch (IOException e) {
@@ -224,6 +179,72 @@ public class Server {
 		} else
 			throw new ServerException(stationName
 					+ " station already on stationList.");
+	}
+
+	public static void joinStation(SocketAddress userSocketAddress,
+			String stationName) throws ServerException {
+
+		if (!stationMap.containsKey(stationName)) {
+			throw new ServerException("User at " + userSocketAddress
+					+ " attempted to join nonexistent station: " + stationName);
+		} else {
+			Station targetStation = stationMap.get(stationName);
+
+			/* Check for user's old station */
+			if (currentStationMap.containsKey(userSocketAddress)) {
+				Station oldStation = currentStationMap.get(userSocketAddress);
+				try {
+					oldStation.removeUser(userSocketAddress);
+
+					// Remove old pairing
+					currentStationMap.remove(userSocketAddress);
+				} catch (StationException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			currentStationMap.put(userSocketAddress, targetStation);
+			try {
+				targetStation.addUser(userSocketAddress);
+			} catch (StationException e) {
+				System.err.println(e.getMessage());
+			}
+		}
+	}
+
+	public static void leaveStation(SocketAddress userSocketAddress,
+			String stationName) {
+		Station targetStation = stationMap.get(stationName);
+
+		if (targetStation != null) {
+			if (currentStationMap.containsKey(userSocketAddress))
+				currentStationMap.remove(userSocketAddress);
+
+			try {
+				if (targetStation.hasUser(userSocketAddress))
+					targetStation.removeUser(userSocketAddress);
+			} catch (StationException e) {
+				System.err.println(e.getMessage());
+			}
+		}
+	}
+
+	public static void addSongToStation(SocketAddress userSocketAddress,
+			String stationName, String songName, int songLength)
+			throws ServerException {
+		Station targetStation = stationMap.get(stationName);
+
+		if (targetStation == null) {
+			throw new ServerException("User at " + userSocketAddress
+					+ " attempted to add a song to nonexistent station : "
+					+ stationName);
+		} else {
+			try {
+				targetStation.addSong(userSocketAddress, songName, songLength);
+			} catch (StationException e) {
+				System.err.println(e.getMessage());
+			}
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -284,7 +305,7 @@ public class Server {
 				station.getName() };
 		String message = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendNotification(message);
+		sendMulticastMessage(message);
 		log("Notified all users that " + station.getName() + " has terminated.");
 	}
 
@@ -296,9 +317,24 @@ public class Server {
 
 		String data = Networking.STATION_ADDED_NOTIFIER + ","
 				+ station.getName();
-		sendNotification(data);
+		sendMulticastMessage(data);
 	}
 
+	private static void sendMulticastMessage(String message) {
+		/** Send message to all devices in allUsers */
+
+		byte[] sendData = message.getBytes();
+		DatagramPacket sendPacket = new DatagramPacket(sendData,
+				sendData.length, groupAddress, Networking.GROUP_PORT);
+
+		try {
+			udpServerSocket.send(sendPacket);
+		} catch (IOException e) {
+			System.err.println(e.getMessage());
+		}
+	}
+
+	@SuppressWarnings("unused")
 	private static void sendNotification(String message) {
 		/** Send message to all devices in allUsers */
 

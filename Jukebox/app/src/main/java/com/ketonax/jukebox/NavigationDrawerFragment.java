@@ -249,10 +249,9 @@ public class NavigationDrawerFragment extends Fragment {
             return true;
         }
 
-        if (item.getItemId() == R.id.action_join) {
-            //MainActivity.joinStation();
+       /* if (item.getItemId() == R.id.action_join) {
             return true;
-        }
+        }*/
 
         return super.onOptionsItemSelected(item);
     }

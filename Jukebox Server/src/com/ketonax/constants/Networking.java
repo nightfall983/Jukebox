@@ -1,5 +1,8 @@
 package com.ketonax.constants;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 public final class Networking {
 	/* Commands To Devices */
 	public static final String PLAY_SONG_CMD = "/play_song";
@@ -31,6 +34,9 @@ public final class Networking {
 	public static final String SONG_ON_LIST_RESPONSE = "/song_on_list";
 	public static final String USER_ON_LIST_RESPONSE = "/user_on_list";
 
+	/* Constants */
+	public static final int DATA_LIMIT_SIZE = 1024;
+
 	/* Separator string */
 	public static final String SEPERATOR = ",";
 
@@ -38,11 +44,26 @@ public final class Networking {
 	public static final String JUKEBOX_MESSAGE_IDENTIFIER = "/";
 
 	/* Server IP address */
-	public static final String SERVER_IP_STRING = "192.168.1.146";
+	public static final String SERVER_IP_STRING = "192.168.1.12";
 
 	/* Server port */
 	public static final int SERVER_PORT = 61001;
 
-	/* Constants */
-	public static final int DATA_LIMIT_SIZE = 1024;
+	/* Multicast */
+	public static final String MULTICAST_IP_STRING = "225.4.5.6";
+	public static final int GROUP_PORT = 61002;
+
+
+	public static InetAddress getGroupAddress() {
+		/* Returns InetAddress for multicast */
+		
+		InetAddress groupAddress = null;
+		try {
+			groupAddress = InetAddress.getByName(MULTICAST_IP_STRING);
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return groupAddress;
+	}
 }

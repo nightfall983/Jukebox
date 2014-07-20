@@ -1,12 +1,16 @@
 package com.ketonax.Constants;
 
+import java.io.IOException;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.net.SocketException;
+import java.net.UnknownHostException;
 
 /**
  * Created by nightfall on 7/13/14.
  */
-public final class ServiceConstants {
+public final class Networking {
     /* Commands from server */
     public static final String PLAY_SONG_CMD = "/play_song";
 
@@ -44,10 +48,15 @@ public final class ServiceConstants {
     public static final int DATA_LIMIT_SIZE = 1024;
 
     /* Server IP address */
-    public static final String SERVER_IP_STRING = "192.168.206.87";
+    public static final String SERVER_IP_STRING = "192.168.1.12";
 
     /* Server port */
     public static final int SERVER_PORT = 61001;
+
+    /* Multicast */
+    public static final String MULTICAST_IP_STRING = "225.4.5.6";
+    public static final int GROUP_PORT = 61002;
+    private static MulticastSocket groupSocket = null;
 
     private static DatagramSocket udpSocket = null;
 
@@ -62,5 +71,31 @@ public final class ServiceConstants {
         }
 
         return udpSocket;
+    }
+
+    /** Returns Multicast socket for group messages */
+    public static MulticastSocket getMulticastSocket(){
+
+        if(groupSocket == null){
+            try {
+                groupSocket = new MulticastSocket(GROUP_PORT);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return groupSocket;
+    }
+
+    /** Returns InetAddress for multicast */
+    public static InetAddress getGroupAddress() {
+
+        InetAddress groupAddress = null;
+        try {
+            groupAddress = InetAddress.getByName(MULTICAST_IP_STRING);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        return groupAddress;
     }
 }

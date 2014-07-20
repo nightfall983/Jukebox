@@ -9,6 +9,7 @@ public final class AppConstants {
     public final static String STATION_LIST_KEY = "station list";
     public final static String STATION_ADAPTER_KEY = "station adapter";
     public final static String CURRENT_STATION_KEY = "current station";
+    public final static String ARG_SECTION_NUMBER = "section_number";
 
     /* Message Integer Constants */
     public final static int MSG_REGISTER_CLIENT = 1;

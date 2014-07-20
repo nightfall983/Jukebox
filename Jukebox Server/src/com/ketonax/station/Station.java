@@ -27,16 +27,20 @@ public class Station implements Runnable {
 	private Queue<String> songsPlayedQueue = null;
 	private Map<String, Integer> songLengthMap = null;
 	private Map<String, SocketAddress> songSourceMap = null;
+	private InetAddress groupAddress = null;
 
 	private boolean stopRunning = false;
 
 	public Station(String stationName, SocketAddress userSocketAddres,
 			DatagramSocket udpServerSocket) {
 
-		// Initialize variables
+		/* Initialize variables */
 		this.stationName = stationName;
 
 		this.udpServerSocket = udpServerSocket;
+
+		/* Group address for multicast messages */
+		groupAddress = Networking.getGroupAddress();
 
 		userList = new ConcurrentLinkedQueue<SocketAddress>();
 		songQueue = new ConcurrentLinkedQueue<String>();
@@ -103,8 +107,8 @@ public class Station implements Runnable {
 	public boolean isEmpty() {
 		return userList.isEmpty();
 	}
-	
-	public boolean hasUser(SocketAddress userSocketAddress){
+
+	public boolean hasUser(SocketAddress userSocketAddress) {
 		return userList.contains(userSocketAddress);
 	}
 
@@ -121,7 +125,8 @@ public class Station implements Runnable {
 		/** This function adds a user to the station user list. */
 		if (!userList.contains(userAddress)) {
 			userList.add(userAddress);
-			
+			log("User at \"" + userAddress + "\" has joined.");
+
 			try {
 				sendPlaylist(userAddress);
 			} catch (IOException e) {
@@ -130,7 +135,6 @@ public class Station implements Runnable {
 			}
 		} else
 			throw new StationException("User is already on the list");
-		log("User at \"" + userAddress + "\" has joined.");
 	}
 
 	public void removeUser(SocketAddress userAddress) throws StationException {
@@ -146,11 +150,11 @@ public class Station implements Runnable {
 					+ ") list.");
 		userList.remove(userAddress);
 
-		String[] elements = { Networking.USER_REMOVED_NOTIFIER,
-				stationName, userAddress.toString() };
+		String[] elements = { Networking.USER_REMOVED_NOTIFIER, stationName,
+				userAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 		log("User at " + userAddress + " has been removed.");
 	}
 
@@ -179,7 +183,7 @@ public class Station implements Runnable {
 
 		String notification = Networking.SONG_ADDED_NOTIFIER + ","
 				+ stationName + "," + songName;
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 		log(songName + " has been added to the station.");
 	}
 
@@ -202,11 +206,11 @@ public class Station implements Runnable {
 		songSourceMap.remove(songName);
 		songLengthMap.remove(songName);
 
-		String[] elements = { Networking.SONG_REMOVED_NOTIFIER,
-				stationName, songName };
+		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName,
+				songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 		log(songName + " has been removed from the station");
 	}
 
@@ -237,11 +241,11 @@ public class Station implements Runnable {
 		 * sends the socket address of the user to the devices.
 		 */
 
-		String[] elements = { Networking.USER_ADDED_NOTIFIER,
-				stationName, addedUserSocketAddress.toString() };
+		String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
+				addedUserSocketAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 		log("User at " + addedUserSocketAddress
 				+ " has been added to the station");
 	}
@@ -255,7 +259,7 @@ public class Station implements Runnable {
 		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 	}
 
 	public void songRemovedNotifier(String songName) {
@@ -267,7 +271,7 @@ public class Station implements Runnable {
 		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 	}
 
 	public void sendPlaylist(SocketAddress userSocketAddress)
@@ -283,8 +287,7 @@ public class Station implements Runnable {
 		for (String s : songQueue) {
 			String[] elements = { Networking.SONG_ON_LIST_RESPONSE,
 					stationName, s };
-			data = MessageBuilder.buildMessage(elements,
-					Networking.SEPERATOR);
+			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -305,8 +308,7 @@ public class Station implements Runnable {
 		for (SocketAddress user : userList) {
 			String[] elements = { Networking.USER_ON_LIST_RESPONSE,
 					stationName, user.toString() };
-			data = MessageBuilder.buildMessage(elements,
-					Networking.SEPERATOR);
+			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -337,6 +339,20 @@ public class Station implements Runnable {
 		DatagramPacket sendPacket = new DatagramPacket(sendData,
 				sendData.length, userIP, userPort);
 
+		try {
+			udpServerSocket.send(sendPacket);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void sendMulticastMessage(String message) {
+		/** This function sends a multicast message to all users in the group */
+
+		byte[] sendData = message.getBytes();
+		DatagramPacket sendPacket = new DatagramPacket(sendData,
+				sendData.length, groupAddress, Networking.GROUP_PORT);
+		
 		try {
 			udpServerSocket.send(sendPacket);
 		} catch (IOException e) {
@@ -410,7 +426,7 @@ public class Station implements Runnable {
 				songSource.toString() };
 		String notification = MessageBuilder.buildMessage(notificationElements,
 				Networking.SEPERATOR);
-		sendToAll(notification);
+		sendMulticastMessage(notification);
 
 		/* Display station queue status */
 		log("Instructed user at \"" + address + "\" to play \"" + songName
