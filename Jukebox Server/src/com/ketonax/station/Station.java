@@ -154,7 +154,8 @@ public class Station implements Runnable {
 				userAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 		log("User at " + userAddress + " has been removed.");
 	}
 
@@ -183,7 +184,8 @@ public class Station implements Runnable {
 
 		String notification = Networking.SONG_ADDED_NOTIFIER + ","
 				+ stationName + "," + songName;
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 		log(songName + " has been added to the station.");
 	}
 
@@ -210,7 +212,8 @@ public class Station implements Runnable {
 				songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 		log(songName + " has been removed from the station");
 	}
 
@@ -245,7 +248,8 @@ public class Station implements Runnable {
 				addedUserSocketAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 		log("User at " + addedUserSocketAddress
 				+ " has been added to the station");
 	}
@@ -259,7 +263,8 @@ public class Station implements Runnable {
 		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 	}
 
 	public void songRemovedNotifier(String songName) {
@@ -271,7 +276,8 @@ public class Station implements Runnable {
 		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 	}
 
 	public void sendPlaylist(SocketAddress userSocketAddress)
@@ -426,7 +432,8 @@ public class Station implements Runnable {
 				songSource.toString() };
 		String notification = MessageBuilder.buildMessage(notificationElements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(notification);
+		//sendMulticastMessage(notification);
+		sendToAll(notification);
 
 		/* Display station queue status */
 		log("Instructed user at \"" + address + "\" to play \"" + songName

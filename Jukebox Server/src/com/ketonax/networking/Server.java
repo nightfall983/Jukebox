@@ -37,6 +37,12 @@ public class Server {
 		stationList = new LinkedList<Station>();
 		stationMap = new HashMap<String, Station>();
 		currentStationMap = new HashMap<SocketAddress, Station>();
+		
+		Thread stationKilledThread = new Thread(){
+			public void run(){
+				
+			}
+		};
 
 		try {
 			udpServerSocket = new DatagramSocket(Networking.SERVER_PORT);
@@ -305,7 +311,8 @@ public class Server {
 				station.getName() };
 		String message = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		sendMulticastMessage(message);
+		//sendMulticastMessage(message);
+		sendNotification(message);
 		log("Notified all users that " + station.getName() + " has terminated.");
 	}
 
@@ -317,9 +324,11 @@ public class Server {
 
 		String data = Networking.STATION_ADDED_NOTIFIER + ","
 				+ station.getName();
-		sendMulticastMessage(data);
+		//sendMulticastMessage(data);
+		sendNotification(data);
 	}
 
+	@SuppressWarnings("unused")
 	private static void sendMulticastMessage(String message) {
 		/** Send message to all devices in allUsers */
 

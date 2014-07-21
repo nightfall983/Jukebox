@@ -43,7 +43,7 @@ public class NetworkingService extends Service {
     Receiver receiver = null;
     GroupReceiver groupReceiver = null;
     Messenger mMessenger = new Messenger(new IncomingHandler());
-    Messenger mClient;
+    static Messenger mClient;
     /* Network Variables */
     private DatagramSocket udpSocket = null;
     private MulticastSocket multicastSocket = null;
@@ -128,7 +128,6 @@ public class NetworkingService extends Service {
         @Override
         public void run() {
             //sender.send(Networking.STATION_LIST_REQUEST_CMD);
-            mClient = mMessenger;
 
             while (keepRunning) {
                 byte[] receiveData = new byte[Networking.DATA_LIMIT_SIZE];
@@ -148,7 +147,83 @@ public class NetworkingService extends Service {
                     if (message.contains(Networking.SEPARATOR)) {
                         String[] msgArray = message.split(Networking.SEPARATOR);
 
-                        if (msgArray[0].equals(Networking.PLAY_SONG_CMD)) {
+                        if (msgArray[0].equals(Networking.STATION_KILLED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.STATION_KILLED_NOTIFIER);
+                            String stationName = msgArray[1];
+                            Bundle bundle = new Bundle();
+                            bundle.putString(Networking.STATION_KILLED_NOTIFIER, stationName);
+                            Message msg = Message.obtain(null, AppConstants.STATION_KILLED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        } else if (msgArray[0].equals(Networking.STATION_ADDED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.STATION_ADDED_NOTIFIER);
+                            String stationName = msgArray[1];
+                            if (!stationList.contains(stationName))
+                                stationList.add(stationName);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(Networking.STATION_ADDED_NOTIFIER, stationName);
+                            Message msg = Message.obtain(null, AppConstants.STATION_ADDED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        } else if (msgArray[0].equals(Networking.SONG_ADDED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.SONG_ADDED_NOTIFIER);
+                            String songName = msgArray[1];
+                            songList.add(songName);
+                        } else if (msgArray[0].equals(Networking.SONG_REMOVED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.SONG_REMOVED_NOTIFIER);
+                            String stationName = msgArray[1];
+                            String songName = msgArray[2];
+
+                            /* Remove songName if it belongs to current station */
+                            if (currentStation.equals(stationName) && songList.contains(songName))
+                                songList.remove(songName);
+
+                        } else if (msgArray[0].equals(Networking.USER_ADDED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.USER_ADDED_NOTIFIER);
+                            String stationName = msgArray[1];
+                            String userAddress[] = msgArray[2].split(":");
+                            String userIPString = userAddress[0];
+                            int userPort = Integer.parseInt(userAddress[1]);
+
+                            // Check to see if userIP contains '/' and remove it
+                            if (userIPString.startsWith("/"))
+                                userIPString = userIPString.replaceFirst("/", "");
+
+                            /* Add userIPString if it belongs to current station*/
+                            if (currentStation.equals(stationName) && !userMap.containsKey(userIPString))
+                                userMap.put(userIPString, userPort);
+
+                        } else if (msgArray[0].equals(Networking.USER_REMOVED_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.USER_REMOVED_NOTIFIER);
+                            String stationName = msgArray[1];
+                            String userAddress[] = msgArray[2].split(":");
+                            String userIPString = userAddress[0];
+
+                            // Check to see if userIP contains '/' and remove it
+                            if (userIPString.startsWith("/"))
+                                userIPString = userIPString.replaceFirst("/", "");
+
+                            /* Add userIPString if it belongs to current station*/
+                            if (currentStation != null) {
+                                if (currentStation.equals(stationName) && userMap.containsKey(userIPString))
+                                    userMap.remove(userIPString);
+                            }
+
+                        } else if (msgArray[0].equals(Networking.CURRENTLY_PLAYING_NOTIFIER)) {
+                            Log.i(AppConstants.APP_TAG, Networking.CURRENTLY_PLAYING_NOTIFIER);
+                            currentSongPlaying = msgArray[1];
+                            currentSongHolder = msgArray[2];
+                        } else if (msgArray[0].equals(Networking.PLAY_SONG_CMD)) {
                             String songName = msgArray[1];
                             Message msg = Message.obtain(null, AppConstants.PLAY_SONG_CMD, songName);
                             try {
@@ -158,16 +233,16 @@ public class NetworkingService extends Service {
                                 e.printStackTrace();
                             }
                         } else if (msgArray[0].equals(Networking.STATION_LIST_REQUEST_RESPONSE)) {
+                            Log.i(AppConstants.APP_TAG, Networking.STATION_LIST_REQUEST_RESPONSE);
                             String stationName = msgArray[1];
                             Bundle bundle = new Bundle();
                             bundle.putString(Networking.STATION_LIST_REQUEST_RESPONSE, stationName);
                             Message msg = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_RESPONSE);
                             msg.setData(bundle);
-                            //msg.replyTo = mMessenger;
+                            msg.replyTo = mMessenger;
                             try {
                                 if (mClient != null) {
                                     mClient.send(msg);
-                                    Log.d(AppConstants.APP_TAG, "mClient is null");
                                 }
                             } catch (RemoteException e) {
                                 e.printStackTrace();
@@ -202,7 +277,6 @@ public class NetworkingService extends Service {
         @Override
         public void run() {
 
-            mClient = mMessenger;
             while (keepRunning) {
                 byte[] receiveData = new byte[Networking.DATA_LIMIT_SIZE];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
@@ -222,6 +296,7 @@ public class NetworkingService extends Service {
                         String[] msgArray = message.split(Networking.SEPARATOR);
 
                         if (msgArray[0].equals(Networking.STATION_KILLED_NOTIFIER)) {
+                            Log.d(AppConstants.APP_TAG, Networking.STATION_KILLED_NOTIFIER);
                             String stationName = msgArray[1];
                             Bundle bundle = new Bundle();
                             bundle.putString(Networking.STATION_KILLED_NOTIFIER, stationName);
@@ -234,6 +309,7 @@ public class NetworkingService extends Service {
                                 e.printStackTrace();
                             }
                         } else if (msgArray[0].equals(Networking.STATION_ADDED_NOTIFIER)) {
+                            Log.d(AppConstants.APP_TAG, Networking.STATION_ADDED_NOTIFIER);
                             String stationName = msgArray[1];
                             if (!stationList.contains(stationName))
                                 stationList.add(stationName);
@@ -319,8 +395,6 @@ public class NetworkingService extends Service {
             switch (msg.what) {
                 case AppConstants.MSG_REGISTER_CLIENT:
                     mClient = msg.replyTo;
-                    messageToSend = Networking.STATION_LIST_REQUEST_CMD;
-                    sender.send(messageToSend);
                     break;
                 case AppConstants.MSG_UNREGISTER_CLIENT:
                     mClient = null;

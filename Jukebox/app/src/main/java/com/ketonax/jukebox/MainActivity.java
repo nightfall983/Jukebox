@@ -49,6 +49,9 @@ public class MainActivity extends Activity
                 Message msg = Message.obtain(null, AppConstants.MSG_REGISTER_CLIENT);
                 msg.replyTo = mMessenger;
                 mService.send(msg);
+
+                Message rqstStationList = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_CMD);
+                mService.send(rqstStationList);
             } catch (RemoteException e) {
                 /* Service has crashed before anything can be done */
                 //e.printStackTrace();
@@ -573,10 +576,10 @@ public class MainActivity extends Activity
                     if (currentStation != null) {
                         if (currentStation.equals(stationName))
                             currentStation = null;
-                        stationList.remove(stationName);
-                        stationAdapter.remove(stationName); //TODO test
                         //showStationListView();
                     }
+                    stationList.remove(stationName);
+                    stationAdapter.remove(stationName);
                 }
                 break;
             }
