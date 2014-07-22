@@ -71,7 +71,7 @@ public class NetworkingService extends Service {
         receiver = new Receiver();
         receiver.start();
         groupReceiver = new GroupReceiver();
-        groupReceiver.start();
+       // groupReceiver.start();
     }
 
 

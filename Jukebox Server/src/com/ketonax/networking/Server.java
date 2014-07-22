@@ -37,12 +37,6 @@ public class Server {
 		stationList = new LinkedList<Station>();
 		stationMap = new HashMap<String, Station>();
 		currentStationMap = new HashMap<SocketAddress, Station>();
-		
-		Thread stationKilledThread = new Thread(){
-			public void run(){
-				
-			}
-		};
 
 		try {
 			udpServerSocket = new DatagramSocket(Networking.SERVER_PORT);
@@ -97,7 +91,6 @@ public class Server {
 						try {
 							joinStation(userSocketAddress, stationName);
 						} catch (ServerException e) {
-							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
 					} else if (messageArray[0]
@@ -135,7 +128,6 @@ public class Server {
 					Station s = it.next();
 					if (s.hasStopped()) {
 						// Send updated station list to all users
-						// TODO Fix crash when a single user leaves
 						sendStationKilledNotifier(s);
 						stationMap.remove(s.getName());
 						it.remove();
@@ -205,7 +197,6 @@ public class Server {
 					// Remove old pairing
 					currentStationMap.remove(userSocketAddress);
 				} catch (StationException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -312,7 +303,7 @@ public class Server {
 		String message = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
 		//sendMulticastMessage(message);
-		sendNotification(message);
+		sendToAll(message);
 		log("Notified all users that " + station.getName() + " has terminated.");
 	}
 
@@ -322,10 +313,10 @@ public class Server {
 		 * includes the station name.
 		 */
 
-		String data = Networking.STATION_ADDED_NOTIFIER + ","
+		String message = Networking.STATION_ADDED_NOTIFIER + ","
 				+ station.getName();
-		//sendMulticastMessage(data);
-		sendNotification(data);
+		//sendMulticastMessage(message);
+		sendToAll(message);
 	}
 
 	@SuppressWarnings("unused")
@@ -344,7 +335,7 @@ public class Server {
 	}
 
 	@SuppressWarnings("unused")
-	private static void sendNotification(String message) {
+	private static void sendToAll(String message) {
 		/** Send message to all devices in allUsers */
 
 		for (SocketAddress sa : allUsers) {

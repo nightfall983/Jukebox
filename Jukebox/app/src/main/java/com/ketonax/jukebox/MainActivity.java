@@ -38,12 +38,14 @@ import java.util.ArrayList;
 public class MainActivity extends Activity
         implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
+    boolean mIsBound;
     static Messenger mService;
-    final Messenger mMessenger = new Messenger(new IncomingHandler());
-    private ServiceConnection mConnection = new ServiceConnection() {
+    Messenger mMessenger = new Messenger(new IncomingHandler());
+    private ServiceConnection         mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             mService = new Messenger(service);
+            mIsBound = true;
 
             try {
                 Message msg = Message.obtain(null, AppConstants.MSG_REGISTER_CLIENT);
@@ -52,6 +54,7 @@ public class MainActivity extends Activity
 
                 Message rqstStationList = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_CMD);
                 mService.send(rqstStationList);
+                Log.i(AppConstants.APP_TAG, "Service is connected.");
             } catch (RemoteException e) {
                 /* Service has crashed before anything can be done */
                 //e.printStackTrace();
@@ -61,9 +64,10 @@ public class MainActivity extends Activity
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             mIsBound = false;
+            Log.i(AppConstants.APP_TAG, "Service is disconnected.");
         }
     };
-    boolean mIsBound;
+
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
      */
@@ -78,7 +82,6 @@ public class MainActivity extends Activity
     static ListView stationListView;
     static ArrayList<String> stationList = new ArrayList<String>();
     static String currentStation;
-    JoinStationFragment jsFragment = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +92,8 @@ public class MainActivity extends Activity
         if (savedInstanceState != null) {
             stationList = savedInstanceState.getStringArrayList(AppConstants.STATION_LIST_KEY);
             currentStation = savedInstanceState.getString(AppConstants.CURRENT_STATION_KEY);
+            mService = savedInstanceState.getParcelable(AppConstants.SERVICE_MESSENGER_KEY);
+            mIsBound = savedInstanceState.getBoolean(AppConstants.SERVICE_CONNECTED_STATUS);
         }
 
         mNavigationDrawerFragment = (NavigationDrawerFragment)
@@ -105,20 +110,20 @@ public class MainActivity extends Activity
     protected void onSaveInstanceState(Bundle outState) {
         outState.putStringArrayList(AppConstants.STATION_LIST_KEY, stationList);
         outState.putString(AppConstants.CURRENT_STATION_KEY, currentStation);
+        outState.putParcelable(AppConstants.SERVICE_MESSENGER_KEY, mService);
+        outState.putBoolean(AppConstants.SERVICE_CONNECTED_STATUS, mIsBound);
         super.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        //showStationListView();
+        doBindService();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        //stationAdapter.addAll(stationList);
-        doBindService();
     }
 
     @Override
@@ -137,6 +142,17 @@ public class MainActivity extends Activity
             Log.e("MainActivity", "Failed to unbind from the service", t);
         }
         super.onDestroy();
+    }
+
+    @Override
+    public void onBackPressed() {
+        try {
+            exitJukebox();
+            unbindService();
+        } catch (Throwable t) {
+            Log.e("MainActivity", "Failed to unbind from the service", t);
+        }
+        super.onBackPressed();
     }
 
     @Override
@@ -245,8 +261,6 @@ public class MainActivity extends Activity
 
         try {
             Message msg = Message.obtain(null, AppConstants.LEAVE_STATION_CMD);
-            String[] elements = {Networking.LEAVE_STATION_CMD, currentStation};
-            String leaveCommand = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
             Bundle bundle = new Bundle();
             bundle.putString(Networking.LEAVE_STATION_CMD, currentStation);
             msg.setData(bundle);
@@ -279,61 +293,6 @@ public class MainActivity extends Activity
     }
 
     /**
-     * This method displays the station list
-     */
-    public void showStationListView() {
-
-        ListView stationListView = (ListView) findViewById(R.id.station_list_view);
-        ArrayAdapter<String> stationAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, android.R.id.text1);
-        stationAdapter.addAll(stationList);
-
-        if(stationListView == null)
-            return;
-        stationListView.setAdapter(stationAdapter);
-        stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-
-                /* */
-                /* Send message to service to send JOIN_STATION_CMD */
-                String stationName = stationList.get(position);
-
-                if (currentStation != null) {
-
-                    if (!currentStation.equals(stationName)) {
-                        currentStation = stationName;
-                        Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                        Bundle bundle = new Bundle();
-                        bundle.putString(Networking.JOIN_STATION_CMD, stationName);
-                        msg.setData(bundle);
-
-                        try {
-                            mService.send(msg);
-                        } catch (RemoteException e) {
-                            //e.printStackTrace();
-                        }
-                        Toast.makeText(getApplicationContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
-                    } else
-                        Toast.makeText(getApplicationContext(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
-                } else {
-                    currentStation = stationName;
-                    Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                    Bundle bundle = new Bundle();
-                    bundle.putString(Networking.JOIN_STATION_CMD, stationName);
-                    msg.setData(bundle);
-
-                    try {
-                        mService.send(msg);
-                    } catch (RemoteException e) {
-                        //e.printStackTrace();
-                    }
-                    Toast.makeText(getApplicationContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
-    }
-
-    /**
      * Private Methods
      */
     private void doBindService() {
@@ -355,6 +314,8 @@ public class MainActivity extends Activity
                     //e.printStackTrace();
                 }
             }
+
+            unbindService(mConnection);
         }
     }
 
@@ -387,7 +348,6 @@ public class MainActivity extends Activity
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.join_station_fragment, container, false);
-            //((MainActivity) getActivity()).showStationListView();
             showStationListView(rootView);
             return rootView;
         }
@@ -449,13 +409,6 @@ public class MainActivity extends Activity
             super.onAttach(activity);
             ((MainActivity) activity).onSectionAttached(
                     getArguments().getInt(ARG_SECTION_NUMBER));
-            //((MainActivity) activity).showStationListView();
-
-            try {
-
-            }catch (ClassCastException e){
-                e.printStackTrace();
-            }
         }
     }
 
@@ -543,11 +496,6 @@ public class MainActivity extends Activity
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-                case AppConstants.MSG_REGISTER_CLIENT:
-                    mService = msg.replyTo;
-                    break;
-                case AppConstants.MSG_UNREGISTER_CLIENT:
-                    mService = null;
                 case AppConstants.STATION_LIST_REQUEST_RESPONSE: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(Networking.STATION_LIST_REQUEST_RESPONSE);
@@ -555,7 +503,6 @@ public class MainActivity extends Activity
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
                     }
-                    //showStationListView();
                 }
                 break;
                 case AppConstants.STATION_ADDED_NOTIFIER: {
@@ -563,9 +510,8 @@ public class MainActivity extends Activity
                     String stationName = bundle.getString(Networking.STATION_ADDED_NOTIFIER);
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
-                        stationAdapter.add(stationName); //TODO test
+                        stationAdapter.add(stationName);
                     }
-                    //showStationListView();
                 }
                 break;
                 case AppConstants.STATION_KILLED_NOTIFIER: {
@@ -576,7 +522,6 @@ public class MainActivity extends Activity
                     if (currentStation != null) {
                         if (currentStation.equals(stationName))
                             currentStation = null;
-                        //showStationListView();
                     }
                     stationList.remove(stationName);
                     stationAdapter.remove(stationName);

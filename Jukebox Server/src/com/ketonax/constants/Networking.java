@@ -44,7 +44,7 @@ public final class Networking {
 	public static final String JUKEBOX_MESSAGE_IDENTIFIER = "/";
 
 	/* Server IP address */
-	public static final String SERVER_IP_STRING = "192.168.1.12";
+	public static final String SERVER_IP_STRING = "192.168.206.87";
 
 	/* Server port */
 	public static final int SERVER_PORT = 61001;
