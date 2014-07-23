@@ -6,11 +6,11 @@ package com.ketonax.Constants;
 public final class AppConstants {
     /* Constants */
     public final static String APP_TAG = "com.ketonax.jukebox";
-    public final static String SERVICE_CONNECTION_KEY = "service connection";
-    public final static String SERVICE_MESSENGER_KEY = "service messenger";
     public final static String SERVICE_CONNECTED_STATUS = "service connected status";
     public final static String STATION_LIST_KEY = "station list";
     public final static String CURRENT_STATION_KEY = "current station";
+
+    /* The fragment argument representing the section number for a fragment. */
     public final static String ARG_SECTION_NUMBER = "section_number";
 
     /* Message Integer Constants */

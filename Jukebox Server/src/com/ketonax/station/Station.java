@@ -447,7 +447,7 @@ public class Station implements Runnable {
 	private void log(String message) {
 		/** This function displays log messages on the console. */
 
-		String logMessage = "Station log [" + stationName + "]: " + message;
+		String logMessage = "[" + stationName + "] station log: " + message;
 		System.out.println(logMessage);
 	}
 }

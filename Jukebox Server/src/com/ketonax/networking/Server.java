@@ -31,7 +31,6 @@ public class Server {
 	static DatagramSocket udpServerSocket = null;
 
 	public static void main(String[] args) {
-
 		System.out.println("Jukebox server has started.");
 
 		stationList = new LinkedList<Station>();

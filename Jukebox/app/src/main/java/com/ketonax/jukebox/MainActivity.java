@@ -29,7 +29,6 @@ import android.widget.Toast;
 
 import com.ketonax.Constants.AppConstants;
 import com.ketonax.Constants.Networking;
-import com.ketonax.Networking.MessageBuilder;
 import com.ketonax.Networking.NetworkingService;
 
 import java.util.ArrayList;
@@ -38,10 +37,16 @@ import java.util.ArrayList;
 public class MainActivity extends Activity
         implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
-    boolean mIsBound;
     static Messenger mService;
+    static ArrayAdapter<String> stationAdapter;
+    static ListView stationListView;
+    static ArrayList<String> stationList = new ArrayList<String>();
+    /* Other variables*/
+    static String currentStation;
+    /* Service Variables */
+    boolean mIsBound;
     Messenger mMessenger = new Messenger(new IncomingHandler());
-    private ServiceConnection         mConnection = new ServiceConnection() {
+    private ServiceConnection mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             mService = new Messenger(service);
@@ -67,21 +72,12 @@ public class MainActivity extends Activity
             Log.i(AppConstants.APP_TAG, "Service is disconnected.");
         }
     };
-
-    /**
-     * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
-     */
-    private NavigationDrawerFragment mNavigationDrawerFragment;
-    /**
-     * Used to store the last screen title. For use in {@link #restoreActionBar()}.
-     */
-    private CharSequence mTitle;
-
+    /* Views and related variables */
     EditText createStationEdit = null;
-    static ArrayAdapter<String> stationAdapter;
-    static ListView stationListView;
-    static ArrayList<String> stationList = new ArrayList<String>();
-    static String currentStation;
+    /* Fragment managing the behaviors, interactions and presentation of the navigation drawer. */
+    private NavigationDrawerFragment mNavigationDrawerFragment;
+    /* Used to store the last screen title. For use in {@link #restoreActionBar()}. */
+    private CharSequence mTitle;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,7 +88,6 @@ public class MainActivity extends Activity
         if (savedInstanceState != null) {
             stationList = savedInstanceState.getStringArrayList(AppConstants.STATION_LIST_KEY);
             currentStation = savedInstanceState.getString(AppConstants.CURRENT_STATION_KEY);
-            mService = savedInstanceState.getParcelable(AppConstants.SERVICE_MESSENGER_KEY);
             mIsBound = savedInstanceState.getBoolean(AppConstants.SERVICE_CONNECTED_STATUS);
         }
 
@@ -100,7 +95,7 @@ public class MainActivity extends Activity
                 getFragmentManager().findFragmentById(R.id.navigation_drawer);
         mTitle = getTitle();
 
-        // Set up the drawer.
+        /* Set up the drawer. */
         mNavigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
@@ -110,7 +105,6 @@ public class MainActivity extends Activity
     protected void onSaveInstanceState(Bundle outState) {
         outState.putStringArrayList(AppConstants.STATION_LIST_KEY, stationList);
         outState.putString(AppConstants.CURRENT_STATION_KEY, currentStation);
-        outState.putParcelable(AppConstants.SERVICE_MESSENGER_KEY, mService);
         outState.putBoolean(AppConstants.SERVICE_CONNECTED_STATUS, mIsBound);
         super.onSaveInstanceState(outState);
     }
@@ -124,11 +118,17 @@ public class MainActivity extends Activity
     @Override
     protected void onResume() {
         super.onResume();
+        stationAdapter.clear();
+        stationAdapter.addAll(stationList);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
     }
 
     @Override
     protected void onStop() {
-        unbindService();
         super.onStop();
     }
 
@@ -203,9 +203,10 @@ public class MainActivity extends Activity
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         if (!mNavigationDrawerFragment.isDrawerOpen()) {
-            // Only show items in the action bar relevant to this screen
-            // if the drawer is not showing. Otherwise, let the drawer
-            // decide what to show in the action bar.
+            /* Only show items in the action bar relevant to this screen
+            if the drawer is not showing. Otherwise, let the drawer
+            decide what to show in the action bar. */
+
             getMenuInflater().inflate(R.menu.main, menu);
             restoreActionBar();
             return true;
@@ -215,9 +216,10 @@ public class MainActivity extends Activity
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
+        /** Handle action bar item clicks here. The action bar will
+         * automatically handle clicks on the Home/Up button, so long
+         * as you specify a parent activity in AndroidManifest.xml. */
+
         int id = item.getItemId();
         if (id == R.id.action_settings) {
             return true;
@@ -225,11 +227,12 @@ public class MainActivity extends Activity
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     * Method called when Create button is pressed.
-     * Sends the name of the station to be created to the NetworkService.
-     */
     public void createStation(View view) {
+        /**
+         * Method called when Create button is pressed.
+         * Sends the name of the station to be created to the NetworkService.
+         */
+
         String stationToCreate;
         createStationEdit = (EditText) findViewById(R.id.station_name_entry);
         stationToCreate = createStationEdit.getText().toString();
@@ -254,10 +257,10 @@ public class MainActivity extends Activity
         createStationEdit.setText(null);
     }
 
-    /**
-     * This methods sends a command to leave the current station to the Networking service
-     */
     public void leaveCurrentStation() {
+        /**
+         * This methods sends a command to leave the current station to the Networking service
+         */
 
         try {
             Message msg = Message.obtain(null, AppConstants.LEAVE_STATION_CMD);
@@ -271,10 +274,10 @@ public class MainActivity extends Activity
         }
     }
 
-    /**
-     * This method sends an exit command to the Networking service
-     */
     public void exitJukebox() {
+        /**
+         * This method sends an exit command to the Networking service
+         */
 
         leaveCurrentStation();
 
@@ -287,22 +290,24 @@ public class MainActivity extends Activity
             mService.send(msg);
             stationList.clear();
             stationAdapter.clear();
+            //TODO Stop background music playback service
         } catch (RemoteException e) {
             //e.printStackTrace();
         }
     }
 
-    /**
-     * Private Methods
-     */
+    /* Private Methods */
     private void doBindService() {
-        /* Establish a connection with the service */
+        /** This method establishes a connection with a service */
+
         bindService(new Intent(this,
                 NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
 
     private void unbindService() {
+        /** This method disconnects from a service */
+
         if (mIsBound) {
             if (mService != null) {
                 try {
@@ -319,27 +324,21 @@ public class MainActivity extends Activity
         }
     }
 
-    /**
-     * A placeholder fragment containing a simple view.
-     */
+    /* Navigation drawer fragments */
     public static class JoinStationFragment extends Fragment {
-        /**
-         * The fragment argument representing the section number for this
-         * fragment.
-         */
-        private static final String ARG_SECTION_NUMBER = "section_number";
 
         public JoinStationFragment() {
         }
 
-        /**
-         * Returns a new instance of this fragment for the given section
-         * number.
-         */
         public static JoinStationFragment newInstance(int sectionNumber) {
+            /**
+             * Returns a new instance of this fragment for the given section
+             * number.
+             */
+
             JoinStationFragment fragment = new JoinStationFragment();
             Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
+            args.putInt(AppConstants.ARG_SECTION_NUMBER, sectionNumber);
             fragment.setArguments(args);
             return fragment;
         }
@@ -358,7 +357,7 @@ public class MainActivity extends Activity
             stationAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
             stationAdapter.addAll(stationList);
 
-            if(stationListView == null)
+            if (stationListView == null)
                 return;
             stationListView.setAdapter(stationAdapter);
             stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -408,18 +407,14 @@ public class MainActivity extends Activity
         public void onAttach(Activity activity) {
             super.onAttach(activity);
             ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(ARG_SECTION_NUMBER));
+                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
         }
     }
 
     public static class MyStationFragment extends Fragment {
-        /** A placeholder fragment containing a simple view. */
-
         /**
-         * The fragment argument representing the section number for this
-         * fragment.
+         * A placeholder fragment containing a simple view.
          */
-        private static final String ARG_SECTION_NUMBER = "section_number";
 
         public MyStationFragment() {
         }
@@ -431,7 +426,7 @@ public class MainActivity extends Activity
         public static MyStationFragment newInstance(int sectionNumber) {
             MyStationFragment fragment = new MyStationFragment();
             Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
+            args.putInt(AppConstants.ARG_SECTION_NUMBER, sectionNumber);
             fragment.setArguments(args);
             return fragment;
         }
@@ -447,30 +442,27 @@ public class MainActivity extends Activity
         public void onAttach(Activity activity) {
             super.onAttach(activity);
             ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(ARG_SECTION_NUMBER));
+                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
         }
     }
 
     public static class AboutInfoFragment extends Fragment {
-        /** A placeholder fragment containing a simple view. */
-
         /**
-         * The fragment argument representing the section number for this
-         * fragment.
+         * A placeholder fragment containing a simple view.
          */
-        private static final String ARG_SECTION_NUMBER = "section_number";
 
         public AboutInfoFragment() {
         }
 
-        /**
-         * Returns a new instance of this fragment for the given section
-         * number.
-         */
         public static AboutInfoFragment newInstance(int sectionNumber) {
+            /**
+             * Returns a new instance of this fragment for the given section
+             * number.
+             */
+
             AboutInfoFragment fragment = new AboutInfoFragment();
             Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
+            args.putInt(AppConstants.ARG_SECTION_NUMBER, sectionNumber);
             fragment.setArguments(args);
             return fragment;
         }
@@ -486,7 +478,7 @@ public class MainActivity extends Activity
         public void onAttach(Activity activity) {
             super.onAttach(activity);
             ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(ARG_SECTION_NUMBER));
+                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
         }
     }
 
