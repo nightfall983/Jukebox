@@ -70,8 +70,8 @@ public class NetworkingService extends Service {
         }
         receiver = new Receiver();
         receiver.start();
-        groupReceiver = new GroupReceiver();
-       // groupReceiver.start();
+        //groupReceiver = new GroupReceiver();
+        //groupReceiver.start();
     }
 
 
@@ -177,7 +177,8 @@ public class NetworkingService extends Service {
                             }
                         } else if (msgArray[0].equals(Networking.SONG_ADDED_NOTIFIER)) {
                             Log.i(AppConstants.APP_TAG, Networking.SONG_ADDED_NOTIFIER);
-                            String songName = msgArray[1];
+                            String stationName = msgArray[1];
+                            String songName = msgArray[2];
                             songList.add(songName);
                         } else if (msgArray[0].equals(Networking.SONG_REMOVED_NOTIFIER)) {
                             Log.i(AppConstants.APP_TAG, Networking.SONG_REMOVED_NOTIFIER);

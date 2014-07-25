@@ -1,4 +1,4 @@
-package com.ketonax.jukebox;
+package com.ketonax.jukebox.Activity;
 
 import android.app.ActionBar;
 import android.app.Activity;
@@ -30,6 +30,7 @@ import android.widget.Toast;
 import com.ketonax.Constants.AppConstants;
 import com.ketonax.Constants.Networking;
 import com.ketonax.Networking.NetworkingService;
+import com.ketonax.jukebox.R;
 
 import java.util.ArrayList;
 
@@ -40,6 +41,8 @@ public class MainActivity extends Activity
     static Messenger mService;
     static ArrayAdapter<String> stationAdapter;
     static ListView stationListView;
+    //Show the music list
+    static ListView musiclistView;
     static ArrayList<String> stationList = new ArrayList<String>();
     /* Other variables*/
     static String currentStation;
@@ -101,6 +104,7 @@ public class MainActivity extends Activity
                 (DrawerLayout) findViewById(R.id.drawer_layout));
     }
 
+    //for rotation
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         outState.putStringArrayList(AppConstants.STATION_LIST_KEY, stationList);
@@ -411,6 +415,13 @@ public class MainActivity extends Activity
         }
     }
 
+    //Create a toast that lists all the music on local and play it.
+    public void search_local_music(View view){
+        Intent intent = new Intent(this, MusicList.class);
+        startActivity(intent);
+        return;
+    }
+
     public static class MyStationFragment extends Fragment {
         /**
          * A placeholder fragment containing a simple view.
@@ -435,7 +446,14 @@ public class MainActivity extends Activity
         public View onCreateView(LayoutInflater inflater, ViewGroup container,
                                  Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.my_station_fragment, container, false);
+            showMusicListView(rootView);
             return rootView;
+        }
+
+
+
+        public void showMusicListView(final View rootView){
+            musiclistView=(ListView)rootView.findViewById(R.id.song_queue_id);
         }
 
         @Override

@@ -369,37 +369,8 @@ public class Station implements Runnable {
 	public void sendToAll(String message) {
 		/** This function sends message to all devices. */
 
-		byte[] sendData = null;
-		DatagramPacket sendPacket = null;
-
-		for (SocketAddress userSocketAddress : userList) {
-
-			// Parse userSocketAddress
-			String userAddress[] = userSocketAddress.toString().split(":");
-			String userIPString = userAddress[0];
-			int userPort = Integer.parseInt(userAddress[1]);
-
-			// Check to see if userIP contains '/' and remove it
-			if (userIPString.startsWith("/"))
-				userIPString = userIPString.replaceFirst("/", "");
-			InetAddress userIP = null;
-			try {
-				userIP = InetAddress.getByName(userIPString);
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-			}
-
-			// Send data
-			sendData = message.getBytes();
-			sendPacket = new DatagramPacket(sendData, sendData.length, userIP,
-					userPort);
-
-			try {
-				udpServerSocket.send(sendPacket);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+		for (SocketAddress userSocketAddress : userList) 
+			sendToUser(message, userSocketAddress);		
 	}
 
 	private void playSong(String songName) throws StationException,

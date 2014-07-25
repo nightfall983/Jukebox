@@ -107,13 +107,25 @@ public class Server {
 
 					if (allUsers.contains(userSocketAddress))
 						allUsers.remove(userSocketAddress);
-					if (currentStationMap.containsKey(userSocketAddress))
+					if (currentStationMap.containsKey(userSocketAddress)) {
+						Station targetStation = currentStationMap
+								.get(userSocketAddress);
+
+						if (targetStation.hasUser(userSocketAddress))
+							try {
+								/* Remove user from their current station */
+								targetStation.removeUser(userSocketAddress);
+							} catch (StationException e) {
+								e.printStackTrace();
+							}
 						currentStationMap.remove(userSocketAddress);
+					}
 				} else if (userMessage
 						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
 
 					if (!allUsers.contains(userSocketAddress))
 						allUsers.add(userSocketAddress);
+					
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
 				} else {
@@ -170,8 +182,10 @@ public class Server {
 					udpServerSocket);
 			stationList.add(station);
 			stationMap.put(station.getName(), station);
-			new Thread(station).start();// Start new station thread
 			currentStationMap.put(userAddress, station);
+			
+			/* Start new station thread */
+			new Thread(station).start();
 			sendStationAddedNotifier(station);
 		} else
 			throw new ServerException(stationName
@@ -301,7 +315,7 @@ public class Server {
 				station.getName() };
 		String message = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		//sendMulticastMessage(message);
+		// sendMulticastMessage(message);
 		sendToAll(message);
 		log("Notified all users that " + station.getName() + " has terminated.");
 	}
@@ -314,7 +328,7 @@ public class Server {
 
 		String message = Networking.STATION_ADDED_NOTIFIER + ","
 				+ station.getName();
-		//sendMulticastMessage(message);
+		// sendMulticastMessage(message);
 		sendToAll(message);
 	}
 
