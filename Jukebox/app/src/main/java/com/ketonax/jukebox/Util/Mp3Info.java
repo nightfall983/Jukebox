@@ -4,6 +4,9 @@ package com.ketonax.jukebox.Util;
  * Created by haoyang on 7/24/14.
  */
 
+
+//Create Model to save each ListView row data.
+
 public class Mp3Info{
     private long id;
     private String title;

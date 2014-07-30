@@ -31,6 +31,7 @@ public class MusicListAdapter extends BaseAdapter{
     }
 
     @Override
+    /******** What is the size of Passed Arraylist Size ************/
     public int getCount() {
         return mp3Infos.size();
     }
@@ -46,8 +47,32 @@ public class MusicListAdapter extends BaseAdapter{
     }
 
     @Override
-    public View getView(int i, View view, ViewGroup viewGroup) {
+    public View getView(int position, View convertView, ViewGroup viewGroup) {
+        View vi = convertView;
+        ViewHolder holder;
 
-        return null;
+        if(convertView==null){
+
+            /****** Inflate .xml file for each row ( Defined below ) *******/
+            vi = LayoutInflater.from(context).inflate(R.layout.text_music_list, null);
+            /****** View Holder Object to contain .xml file elements ******/
+            holder = new ViewHolder();
+            holder.albumImage = (ImageView) vi.findViewById(R.id.album_image);
+            holder.musicTitle=(TextView)vi.findViewById(R.id.music_title);
+            holder.musicArtist=(TextView)vi.findViewById(R.id.music_artist);
+            holder.musicDuration=(TextView)vi.findViewById(R.id.music_duration);
+            /************  Set holder with LayoutInflater ************/
+            vi.setTag( holder );
+        }
+        else {
+            holder = (ViewHolder) vi.getTag();
+        }
+
+        mp3Info = mp3Infos.get(position);
+        holder.musicTitle.setText(mp3Info.getTitle());
+        holder.musicArtist.setText(mp3Info.getArtist());
+        holder.musicDuration.setText(MediaUtil.formatTime(mp3Info.getDuration()));
+
+        return vi;
     }
 }
