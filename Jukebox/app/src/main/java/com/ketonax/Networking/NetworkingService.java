@@ -36,6 +36,7 @@ public class NetworkingService extends Service {
     Receiver receiver = null;
     GroupReceiver groupReceiver = null;
     Messenger mMessenger = new Messenger(new IncomingHandler());
+    private final IBinder mBinder = new MyBinder();
     /* Network Variables */
     private DatagramSocket udpSocket = null;
     private MulticastSocket multicastSocket = null;

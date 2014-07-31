@@ -81,8 +81,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 //e.printStackTrace();
             }
 
-            NetworkingService.MyBinder b = (NetworkingService.MyBinder) binder;
-            networkService= b.getService();
+            //NetworkingService.MyBinder b = (NetworkingService.MyBinder) binder;
+            networkService = new NetworkingService();
         }
 
         @Override
@@ -709,6 +709,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 case AppConstants.PLAY_SONG_CMD: {
                     Bundle bundle = msg.getData();
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    Toast.makeText(getApplicationContext(),"Will start streaming song", Toast.LENGTH_SHORT).show();
                     for(String userIP : userIPList){
                         networkService.sendSong(userIP, Networking.TCP_PORT_NUMBER, songName);
                     }
