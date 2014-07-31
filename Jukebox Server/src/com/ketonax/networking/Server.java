@@ -120,12 +120,11 @@ public class Server {
 							}
 						currentStationMap.remove(userSocketAddress);
 					}
+					
+					log("User at " + userSocketAddress + " has disconnected.");
 				} else if (userMessage
 						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
 
-					if (!allUsers.contains(userSocketAddress))
-						allUsers.add(userSocketAddress);
-					
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
 				} else {
@@ -161,19 +160,25 @@ public class Server {
 			SocketAddress userAddress) throws ServerException {
 		/** Creates a new Station and runs it in a new thread. */
 
+		/*
+		 * Check if the creator is currently in a different station. If so,
+		 * remove creator from that station.
+		 */
 		if (currentStationMap.containsKey(userAddress)) {
 			Station oldStation = currentStationMap.get(userAddress);
 
 			try {
-				oldStation.removeUser(userAddress);
+				if (oldStation.hasUser(userAddress))
+					oldStation.removeUser(userAddress);
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
 			}
 
+			/* Remove map to the old station */
 			currentStationMap.remove(userAddress);
 		}
 
-		// Add user to ALL_USERS list
+		/* Add user to ALL_USERS list */
 		if (!allUsers.contains(userAddress))
 			allUsers.add(userAddress);
 
@@ -183,8 +188,8 @@ public class Server {
 			stationList.add(station);
 			stationMap.put(station.getName(), station);
 			currentStationMap.put(userAddress, station);
-			
-			/* Start new station thread */
+
+			/* Start new station thread and notify user of station creation */
 			new Thread(station).start();
 			sendStationAddedNotifier(station);
 		} else
@@ -198,7 +203,11 @@ public class Server {
 		if (!stationMap.containsKey(stationName)) {
 			throw new ServerException("User at " + userSocketAddress
 					+ " attempted to join nonexistent station: " + stationName);
-		} else {
+		} else {			
+			/* Add user if the user is not on the allUsers list */
+			if (!allUsers.contains(userSocketAddress))
+				allUsers.add(userSocketAddress);
+			
 			Station targetStation = stationMap.get(stationName);
 
 			/* Check for user's old station */
@@ -246,7 +255,7 @@ public class Server {
 
 		if (targetStation == null) {
 			throw new ServerException("User at " + userSocketAddress
-					+ " attempted to add a song to nonexistent station : "
+					+ " attempted to add a song to nonexistent station: "
 					+ stationName);
 		} else {
 			try {
@@ -285,19 +294,18 @@ public class Server {
 
 		String data = null;
 		byte[] sendData = null;
-
 		DatagramPacket sendPacket = null;
 
 		for (Station s : stationList) {
 			String name = s.getName();
 
-			// Create data string and convert it to bytes
+			/* Create data string and convert it to bytes */
 			String[] elements = { Networking.STATION_LIST_REQUEST_RESPONSE,
 					name };
 			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
 			sendData = data.getBytes();
 
-			// Send data packet
+			/* Send data packet */
 			sendPacket = new DatagramPacket(sendData, sendData.length, userIP,
 					userPort);
 			try {
@@ -347,7 +355,6 @@ public class Server {
 		}
 	}
 
-	@SuppressWarnings("unused")
 	private static void sendToAll(String message) {
 		/** Send message to all devices in allUsers */
 

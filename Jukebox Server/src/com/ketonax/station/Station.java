@@ -129,6 +129,7 @@ public class Station implements Runnable {
 
 			try {
 				sendPlaylist(userAddress);
+				sendUserList(userAddress);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -173,7 +174,7 @@ public class Station implements Runnable {
 					+ ") is not part of this station (Station Name: "
 					+ stationName + ").");
 
-		if (songSourceMap.containsKey(songName))
+		if (songQueue.contains(songName))
 			throw new StationException("Song (Song Name: " + songName
 					+ ") is already on this station (Station Name: "
 					+ stationName + ") playlist.");
@@ -273,7 +274,7 @@ public class Station implements Runnable {
 		 * to the queue.
 		 */
 
-		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, songName };
+		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName, songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
 		//sendMulticastMessage(notification);
@@ -411,7 +412,7 @@ public class Station implements Runnable {
 				+ "\". Song length = " + songLengthMap.get(songName)
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
-
+		
 		Thread.sleep(songLength);
 	}
 

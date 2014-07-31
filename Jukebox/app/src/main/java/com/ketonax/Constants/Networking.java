@@ -54,6 +54,10 @@ public final class Networking {
     /* Server port */
     public static final int SERVER_PORT = 61001;
 
+    /* TCP PORT */
+    public static final int TCP_PORT_NUMBER = 6000;
+
+
     /* Multicast */
     public static final String MULTICAST_IP_STRING = "225.4.5.6";
     public static final int GROUP_PORT = 61002;

@@ -38,6 +38,7 @@ import com.ketonax.jukebox.Util.MediaUtil;
 import com.ketonax.jukebox.Util.Mp3Info;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 public class MainActivity extends Activity implements NavigationDrawerFragment.NavigationDrawerCallbacks {
@@ -49,17 +50,22 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
     static ListView stationQueueListView;
     static ArrayAdapter<String> stationAdapter;
     static ArrayAdapter<String> stationQueueAdapter;
+
     static ArrayList<String> stationList = new ArrayList<String>();
     static ArrayList<String> songList = new ArrayList<String>();
+    static ArrayList<String> userIPList = new ArrayList<String>();
+    static HashMap<String, Integer> udpPortMap = new HashMap<String, Integer>();
 
     /* Other variables*/
     static String currentStation;
+
     /* Service Variables */ boolean mIsBound;
-    Messenger mMessenger = new Messenger(new IncomingHandler());
+    private Messenger mMessenger = new Messenger(new IncomingHandler());
+    private NetworkingService networkService= null;
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
-        public void onServiceConnected(ComponentName componentName, IBinder service) {
-            mService = new Messenger(service);
+        public void onServiceConnected(ComponentName componentName, IBinder binder) {
+            mService = new Messenger(binder);
             mIsBound = true;
 
             try {
@@ -74,11 +80,15 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 /* Service has crashed before anything can be done */
                 //e.printStackTrace();
             }
+
+            NetworkingService.MyBinder b = (NetworkingService.MyBinder) binder;
+            networkService= b.getService();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             mIsBound = false;
+            networkService = null;
             Log.i(AppConstants.APP_TAG, "Service is disconnected.");
         }
     };
@@ -131,7 +141,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         stationAdapter.addAll(stationList);
 
         /* Reset station queue view */
-        if(stationQueueAdapter != null) {
+        if (stationQueueAdapter != null) {
             stationQueueAdapter.clear();
             stationQueueAdapter.addAll(songList);
         }
@@ -267,10 +277,14 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             currentStation = stationToCreate;
 
             /* Clear songList for previous station*/
-            if(stationQueueAdapter != null) {
+            if (stationQueueAdapter != null) {
                 songList.clear();
                 stationQueueAdapter.clear();
             }
+
+            /* Clear userIPList and udpPortMap for previous station */
+            userIPList.clear();
+            udpPortMap.clear();
         }
 
         createStationEdit.setText(null);
@@ -401,7 +415,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             });
         }
 
-        public void joinStation(String stationName){
+        public void joinStation(String stationName) {
 
             if (currentStation != null) {
 
@@ -438,17 +452,21 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
             }
 
-            /* Clear songList for previous station*/
-            if(stationQueueAdapter != null) {
+            /* Clear songList for previous station */
+            if (stationQueueAdapter != null) {
                 songList.clear();
                 stationQueueAdapter.clear();
             }
 
             /* Send request for new song queue */
-            Message msg = Message.obtain(null, AppConstants.GET_PLAYLIST_CMD);
+            /*Message msg = Message.obtain(null, AppConstants.GET_PLAYLIST_CMD);
             Bundle bundle = new Bundle();
             bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
-            msg.setData(bundle);
+            msg.setData(bundle); */
+
+            /* Clear userIPList and udpPortMap for previous station */
+            userIPList.clear();
+            udpPortMap.clear();
         }
 
         @Override
@@ -632,8 +650,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
-                    if(currentStation.equals(stationName)) {
-                        if(!songList.contains(songName)) {
+                    if (currentStation.equals(stationName)) {
+                        if (!songList.contains(songName)) {
                             songList.add(songName);
                             stationQueueAdapter.add(songName);
                         }
@@ -644,7 +662,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
-                    if(currentStation.equals(stationName)) {
+                    if (currentStation.equals(stationName)) {
                         songList.remove(songName);
                         stationQueueAdapter.remove(songName);
                     }
@@ -654,9 +672,45 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
-                    if(currentStation.equals(stationName)) {
+                    if (currentStation.equals(stationName)) {
                         songList.add(songName);
                         stationQueueAdapter.add(songName);
+                    }
+                }
+                break;
+                case AppConstants.USER_ADDED_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String userIP = bundle.getString(AppConstants.USER_IP_KEY);
+                    int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
+                    if (!userIPList.contains(userIP))
+                        userIPList.add(userIP);
+                    udpPortMap.put(userIP, udpPort);
+                }
+                break;
+                case AppConstants.USER_REMOVED_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String userIP = bundle.getString(AppConstants.USER_IP_KEY);
+                    int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
+                    userIPList.remove(userIP);
+                    udpPortMap.remove(userIP);
+                }
+                break;
+                case AppConstants.USER_ON_LIST_RESPONSE: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String userIP = bundle.getString(AppConstants.USER_IP_KEY);
+                    int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
+                    userIPList.add(userIP);
+                    udpPortMap.put(userIP, udpPort);
+                }
+                break;
+                case AppConstants.PLAY_SONG_CMD: {
+                    Bundle bundle = msg.getData();
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    for(String userIP : userIPList){
+                        networkService.sendSong(userIP, Networking.TCP_PORT_NUMBER, songName);
                     }
                 }
                 break;

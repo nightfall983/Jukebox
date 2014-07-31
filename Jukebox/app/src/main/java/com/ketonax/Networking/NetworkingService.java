@@ -3,6 +3,7 @@ package com.ketonax.Networking;
 import android.app.Service;
 import android.content.Intent;
 import android.os.AsyncTask;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -76,8 +77,19 @@ public class NetworkingService extends Service {
         super.onDestroy();
     }
 
-    /*Used for sending data to Jukebox Server*/
-    public class UDP_Sender {
+    public void sendSong(String userIP, int tcpPortNumber, String songName) {
+        TCP_Sender tcpSender = new TCP_Sender();
+        tcpSender.send(userIP, tcpPortNumber, songName);
+    }
+
+    public class MyBinder extends Binder {
+        public NetworkingService getService() {
+            return NetworkingService.this;
+        }
+    }
+
+    private class UDP_Sender {
+        /** Used for sending data to Jukebox Server */
         private byte[] sendData = null;
         private AsyncTask<Void, Void, Void> asyncSender;
         private DatagramPacket sendPacket = null;
@@ -99,6 +111,27 @@ public class NetworkingService extends Service {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+                    return null;
+                }
+            };
+
+            if (Build.VERSION.SDK_INT >= 11)
+                asyncSender.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+            else
+                asyncSender.execute();
+        }
+    }
+
+    private class TCP_Sender {
+
+        private AsyncTask<Void, Void, Void> asyncSender;
+
+        public void send(final String userIP, final int tcpPortNumber, final String songName) {
+            asyncSender = new AsyncTask<Void, Void, Void>() {
+                @Override
+                protected Void doInBackground(Void... voids) {
+                    //TODO Implement TCP send part
+
                     return null;
                 }
             };
@@ -217,15 +250,42 @@ public class NetworkingService extends Service {
                             // Check to see if userIP contains '/' and remove it
                             if (userIPString.startsWith("/"))
                                 userIPString = userIPString.replaceFirst("/", "");
+
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.USER_IP_KEY, userIPString);
+                            bundle.putInt(AppConstants.USER_UDP_PORT_KEY, userPort);
+                            Message msg = Message.obtain(null, AppConstants.USER_ADDED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(Networking.USER_REMOVED_NOTIFIER)) {
                             Log.i(AppConstants.APP_TAG, Networking.USER_REMOVED_NOTIFIER);
                             String stationName = msgArray[1];
                             String userAddress[] = msgArray[2].split(":");
                             String userIPString = userAddress[0];
+                            int userPort = Integer.parseInt(userAddress[1]);
 
                             // Check to see if userIP contains '/' and remove it
                             if (userIPString.startsWith("/"))
                                 userIPString = userIPString.replaceFirst("/", "");
+
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.USER_IP_KEY, userIPString);
+                            bundle.putInt(AppConstants.USER_UDP_PORT_KEY, userPort);
+                            Message msg = Message.obtain(null, AppConstants.USER_REMOVED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(Networking.CURRENTLY_PLAYING_NOTIFIER)) {
                             Log.i(AppConstants.APP_TAG, Networking.CURRENTLY_PLAYING_NOTIFIER);
                             String currentSongPlaying = msgArray[1];
@@ -270,6 +330,19 @@ public class NetworkingService extends Service {
                             // Check to see if userIP contains '/' and remove it
                             if (userIPString.startsWith("/"))
                                 userIPString = userIPString.replaceFirst("/", "");
+
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.USER_IP_KEY, userIPString);
+                            bundle.putInt(AppConstants.USER_UDP_PORT_KEY, userPort);
+                            Message msg = Message.obtain(null, AppConstants.USER_ON_LIST_RESPONSE);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         }
                     } else
                         Log.e(AppConstants.APP_TAG, "Unknown message received from server: " + message);
@@ -342,14 +415,41 @@ public class NetworkingService extends Service {
                             // Check to see if userIP contains '/' and remove it
                             if (userIPString.startsWith("/"))
                                 userIPString = userIPString.replaceFirst("/", "");
+
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.USER_IP_KEY, userIPString);
+                            bundle.putInt(AppConstants.USER_UDP_PORT_KEY, userPort);
+                            Message msg = Message.obtain(null, AppConstants.USER_ADDED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(Networking.USER_REMOVED_NOTIFIER)) {
                             String stationName = msgArray[1];
                             String userAddress[] = msgArray[2].split(":");
                             String userIPString = userAddress[0];
+                            int userPort = Integer.parseInt(userAddress[1]);
 
                             // Check to see if userIP contains '/' and remove it
                             if (userIPString.startsWith("/"))
                                 userIPString = userIPString.replaceFirst("/", "");
+
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.USER_IP_KEY, userIPString);
+                            bundle.putInt(AppConstants.USER_UDP_PORT_KEY, userPort);
+                            Message msg = Message.obtain(null, AppConstants.USER_REMOVED_NOTIFIER);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null)
+                                    mClient.send(msg);
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
                         } else if (msgArray[0].equals(Networking.CURRENTLY_PLAYING_NOTIFIER)) {
                             String currentSongPlaying = msgArray[1];
                             String songHolderAddress[] = msgArray[2].split(":");
@@ -365,6 +465,10 @@ public class NetworkingService extends Service {
                 } else
                     Log.e(AppConstants.APP_TAG, "Unknown message received from server: " + message);
             }
+        }
+
+        private class TCP_Receiver extends Thread{
+            //TODO Implement tcp receive
         }
     }
 

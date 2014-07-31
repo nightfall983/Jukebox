@@ -12,6 +12,8 @@ public final class AppConstants {
     public final static String STATION_NAME_KEY = "station name";
     public final static String SONG_NAME_KEY = "song name";
     public final static String SONG_LENGTH_KEY = "song length";
+    public final static String USER_IP_KEY = "user ip";
+    public final static String USER_UDP_PORT_KEY = "udp port";
 
     /* The fragment argument representing the section number for a fragment. */
     public final static String ARG_SECTION_NUMBER = "section_number";
