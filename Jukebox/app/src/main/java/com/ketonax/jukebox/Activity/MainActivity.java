@@ -396,12 +396,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 /* */
                 /* Send message to service to send JOIN_STATION_CMD */
                     String stationName = stationList.get(position);
-                    switchStation(stationName);
+                    joinStation(stationName);
                 }
             });
         }
 
-        public void switchStation(String stationName){
+        public void joinStation(String stationName){
 
             if (currentStation != null) {
 
@@ -616,7 +616,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 break;
                 case AppConstants.STATION_KILLED_NOTIFIER: {
                     Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(Networking.STATION_KILLED_NOTIFIER);
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
 
                     /* Reset current station if it has been removed from the server*/
                     if (currentStation != null) {
