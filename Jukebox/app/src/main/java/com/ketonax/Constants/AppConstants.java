@@ -44,4 +44,7 @@ public final class AppConstants {
     /* Response to devices */
     public static final int STATION_LIST_REQUEST_RESPONSE = 19;
     public static final int USER_ON_LIST_RESPONSE = 20;
+
+    /* Activity Request Codes */
+    public static final int ADD_SONG_REQUEST_CODE = 1000;
 }

@@ -1,26 +1,19 @@
 package com.ketonax.jukebox.Activity;
 
-import android.app.ActionBar;
 import android.app.Activity;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ListView;
-import java.util.List;
 
 import com.ketonax.jukebox.Adapter.MusicListAdapter;
-import com.ketonax.jukebox.Adapter.StringAdapter;
+import com.ketonax.jukebox.R;
 import com.ketonax.jukebox.Util.MediaUtil;
 import com.ketonax.jukebox.Util.Mp3Info;
-import com.ketonax.jukebox.R;
 
-import android.widget.AdapterView.OnItemClickListener;
-import android.widget.TextView;
-import android.widget.Toast;
+import java.util.List;
 
 
 /**
@@ -38,12 +31,11 @@ public class MusicList extends Activity implements OnItemClickListener{
         setContentView(R.layout.music_list);
         getActionBar().setDisplayHomeAsUpEnabled(true);
 
-        mMusiclist = (ListView) findViewById(R.id.list_music);
+        mMusiclist = (ListView) findViewById(R.id.local_music_list_view);
        // ArrayAdapter<String> stringAdapter=new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,days);
       //  mMusiclist.setAdapter(stringAdapter);
 
         //Set List Adapter
-
         mp3Infos = MediaUtil.getMp3Infos(MusicList.this);
         //setListAdpter(MediaUtil.getMusicMaps(mp3Infos))
         listAdapter = new MusicListAdapter(this, mp3Infos);
@@ -65,9 +57,10 @@ public class MusicList extends Activity implements OnItemClickListener{
     }
 
     @Override
-    public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+    public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
         //TextView temp=(TextView)view;
         //Toast.makeText(this,temp.getText()+" "+i,Toast.LENGTH_SHORT).show();
+
     }
 }
 

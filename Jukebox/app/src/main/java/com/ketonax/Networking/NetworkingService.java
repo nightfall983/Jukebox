@@ -30,15 +30,19 @@ import java.util.HashMap;
  */
 
 public class NetworkingService extends Service {
+
     boolean keepRunning = true;
     /* Jukebox Radio Variables */
     ArrayList<String> stationList = new ArrayList<String>();
     ArrayList<String> songList = new ArrayList<String>();
+
     HashMap<String, Integer> userMap = new HashMap<String, Integer>();
+
     String currentStation = null;
     String currentSongPlaying = null;
     String currentSongHolder = null;
     String songToPlay = null;
+
     UDP_Sender sender = null;
     Receiver receiver = null;
     GroupReceiver groupReceiver = null;

@@ -2,6 +2,7 @@ package com.ketonax.jukebox.Activity;
 
 import android.app.ActionBar;
 import android.app.Activity;
+import android.app.DialogFragment;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.content.ComponentName;
@@ -14,6 +15,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.support.annotation.Nullable;
 import android.support.v4.widget.DrawerLayout;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -30,13 +32,15 @@ import android.widget.Toast;
 import com.ketonax.Constants.AppConstants;
 import com.ketonax.Constants.Networking;
 import com.ketonax.Networking.NetworkingService;
+import com.ketonax.jukebox.Adapter.MusicListAdapter;
 import com.ketonax.jukebox.R;
+import com.ketonax.jukebox.Util.MediaUtil;
+import com.ketonax.jukebox.Util.Mp3Info;
 
 import java.util.ArrayList;
+import java.util.List;
 
-
-public class MainActivity extends Activity
-        implements NavigationDrawerFragment.NavigationDrawerCallbacks {
+public class MainActivity extends Activity implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
     static Messenger mService;
     static ArrayAdapter<String> stationAdapter;
@@ -46,8 +50,7 @@ public class MainActivity extends Activity
     static ArrayList<String> stationList = new ArrayList<String>();
     /* Other variables*/
     static String currentStation;
-    /* Service Variables */
-    boolean mIsBound;
+    /* Service Variables */ boolean mIsBound;
     Messenger mMessenger = new Messenger(new IncomingHandler());
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
@@ -75,8 +78,7 @@ public class MainActivity extends Activity
             Log.i(AppConstants.APP_TAG, "Service is disconnected.");
         }
     };
-    /* Views and related variables */
-    EditText createStationEdit = null;
+    /* Views and related variables */ EditText createStationEdit = null;
     /* Fragment managing the behaviors, interactions and presentation of the navigation drawer. */
     private NavigationDrawerFragment mNavigationDrawerFragment;
     /* Used to store the last screen title. For use in {@link #restoreActionBar()}. */
@@ -94,14 +96,11 @@ public class MainActivity extends Activity
             mIsBound = savedInstanceState.getBoolean(AppConstants.SERVICE_CONNECTED_STATUS);
         }
 
-        mNavigationDrawerFragment = (NavigationDrawerFragment)
-                getFragmentManager().findFragmentById(R.id.navigation_drawer);
+        mNavigationDrawerFragment = (NavigationDrawerFragment) getFragmentManager().findFragmentById(R.id.navigation_drawer);
         mTitle = getTitle();
 
         /* Set up the drawer. */
-        mNavigationDrawerFragment.setUp(
-                R.id.navigation_drawer,
-                (DrawerLayout) findViewById(R.id.drawer_layout));
+        mNavigationDrawerFragment.setUp(R.id.navigation_drawer, (DrawerLayout) findViewById(R.id.drawer_layout));
     }
 
     //for rotation
@@ -148,6 +147,8 @@ public class MainActivity extends Activity
         super.onDestroy();
     }
 
+
+
     @Override
     public void onBackPressed() {
         try {
@@ -166,19 +167,13 @@ public class MainActivity extends Activity
 
         switch (position) {
             case 0:
-                fragmentManager.beginTransaction()
-                        .replace(R.id.container, JoinStationFragment.newInstance(position + 1))
-                        .commit();
+                fragmentManager.beginTransaction().replace(R.id.container, JoinStationFragment.newInstance(position + 1)).commit();
                 break;
             case 1:
-                fragmentManager.beginTransaction()
-                        .replace(R.id.container, MyStationFragment.newInstance(position + 1))
-                        .commit();
+                fragmentManager.beginTransaction().replace(R.id.container, MyStationFragment.newInstance(position + 1)).commit();
                 break;
             case 2:
-                fragmentManager.beginTransaction()
-                        .replace(R.id.container, AboutInfoFragment.newInstance(position + 1))
-                        .commit();
+                fragmentManager.beginTransaction().replace(R.id.container, AboutInfoFragment.newInstance(position + 1)).commit();
                 break;
         }
     }
@@ -189,7 +184,10 @@ public class MainActivity extends Activity
                 mTitle = getString(R.string.title_section1);
                 break;
             case 2:
-                mTitle = getString(R.string.title_section2);
+                if (currentStation != null)
+                    mTitle = currentStation;
+                else
+                    mTitle = getString(R.string.title_section2);
                 break;
             case 3:
                 mTitle = getString(R.string.title_section3);
@@ -241,9 +239,9 @@ public class MainActivity extends Activity
         createStationEdit = (EditText) findViewById(R.id.station_name_entry);
         stationToCreate = createStationEdit.getText().toString();
 
-        if (stationToCreate.isEmpty())
+        if (stationToCreate.isEmpty()) {
             Toast.makeText(getApplicationContext(), "Please enter a name for the station.", Toast.LENGTH_SHORT).show();
-        else {
+        } else {
             /* Send stationToCreate to service */
             try {
                 Message msg = Message.obtain(null, AppConstants.CREATE_STATION_CMD);
@@ -259,6 +257,14 @@ public class MainActivity extends Activity
         }
 
         createStationEdit.setText(null);
+    }
+
+    public void searchLocalMusic(View view) {
+        //Intent intent = new Intent(this, MusicList.class);
+        //startActivityForResult(intent, AppConstants.ADD_SONG_REQUEST_CODE);
+        FragmentManager fm = getFragmentManager();
+        ChooseMusicDialog chooseMusic = new ChooseMusicDialog();
+        chooseMusic.show(fm, "Choose Music Dialog");
     }
 
     public void leaveCurrentStation() {
@@ -304,8 +310,7 @@ public class MainActivity extends Activity
     private void doBindService() {
         /** This method establishes a connection with a service */
 
-        bindService(new Intent(this,
-                NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
+        bindService(new Intent(this, NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
 
@@ -348,8 +353,7 @@ public class MainActivity extends Activity
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.join_station_fragment, container, false);
             showStationListView(rootView);
             return rootView;
@@ -361,8 +365,9 @@ public class MainActivity extends Activity
             stationAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
             stationAdapter.addAll(stationList);
 
-            if (stationListView == null)
+            if (stationListView == null) {
                 return;
+            }
             stationListView.setAdapter(stationAdapter);
             stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
@@ -387,8 +392,9 @@ public class MainActivity extends Activity
                                 //e.printStackTrace();
                             }
                             Toast.makeText(rootView.getContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
-                        } else
+                        } else {
                             Toast.makeText(rootView.getContext(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
+                        }
                     } else {
                         currentStation = stationName;
                         Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
@@ -410,16 +416,8 @@ public class MainActivity extends Activity
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
         }
-    }
-
-    //Create a toast that lists all the music on local and play it.
-    public void search_local_music(View view){
-        Intent intent = new Intent(this, MusicList.class);
-        startActivity(intent);
-        return;
     }
 
     public static class MyStationFragment extends Fragment {
@@ -443,24 +441,20 @@ public class MainActivity extends Activity
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.my_station_fragment, container, false);
             showMusicListView(rootView);
             return rootView;
         }
 
-
-
-        public void showMusicListView(final View rootView){
-            musiclistView=(ListView)rootView.findViewById(R.id.song_queue_id);
+        public void showMusicListView(final View rootView) {
+            musiclistView = (ListView) rootView.findViewById(R.id.song_queue_id);
         }
 
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
         }
     }
 
@@ -486,8 +480,7 @@ public class MainActivity extends Activity
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.about_info_fragment, container, false);
             return rootView;
         }
@@ -495,8 +488,42 @@ public class MainActivity extends Activity
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(
-                    getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+        }
+    }
+
+    public static class ChooseMusicDialog extends DialogFragment{
+
+        private ListView mMusiclist;
+        MediaUtil music = new MediaUtil();
+        private List<Mp3Info> mp3Infos = null;
+        MusicListAdapter listAdapter;
+
+        public ChooseMusicDialog() {
+
+        }
+
+        @Nullable
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+
+            View view = inflater.inflate(R.layout.music_list, container);
+            getDialog().setTitle(R.string.title_choose_music);
+
+            mMusiclist = (ListView) view.findViewById(R.id.local_music_list_view);
+
+            /* Set List Adapter */
+            mp3Infos = MediaUtil.getMp3Infos(getActivity());
+            listAdapter = new MusicListAdapter(getActivity(), mp3Infos);
+            mMusiclist.setAdapter(listAdapter);
+            mMusiclist.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+
+                }
+            });
+
+            return view;
         }
     }
 
@@ -530,8 +557,9 @@ public class MainActivity extends Activity
 
                     /* Reset current station if it has been removed from the server*/
                     if (currentStation != null) {
-                        if (currentStation.equals(stationName))
+                        if (currentStation.equals(stationName)) {
                             currentStation = null;
+                        }
                     }
                     stationList.remove(stationName);
                     stationAdapter.remove(stationName);

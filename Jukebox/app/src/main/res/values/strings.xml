@@ -11,5 +11,7 @@
     <string name="create_station_button">Create</string>
     <string name="action_settings">Settings</string>
     <string name="action_exit">Exit Jukebox</string>
+    <string name="add_music_button">Add Music</string>
+    <string name="title_choose_music">Choose Music</string>
 
 </resources>
