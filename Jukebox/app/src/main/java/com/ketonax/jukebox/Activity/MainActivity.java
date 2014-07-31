@@ -43,11 +43,15 @@ import java.util.List;
 public class MainActivity extends Activity implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
     static Messenger mService;
-    static ArrayAdapter<String> stationAdapter;
+
+    /* Display list variables*/
     static ListView stationListView;
-    //Show the music list
-    static ListView musiclistView;
+    static ListView stationQueueListView;
+    static ArrayAdapter<String> stationAdapter;
+    static ArrayAdapter<String> stationQueueAdapter;
     static ArrayList<String> stationList = new ArrayList<String>();
+    static ArrayList<String> songList = new ArrayList<String>();
+
     /* Other variables*/
     static String currentStation;
     /* Service Variables */ boolean mIsBound;
@@ -121,8 +125,16 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
     @Override
     protected void onResume() {
         super.onResume();
+
+        /* Reset station list view */
         stationAdapter.clear();
         stationAdapter.addAll(stationList);
+
+        /* Reset station queue view */
+        if(stationQueueAdapter != null) {
+            stationQueueAdapter.clear();
+            stationQueueAdapter.addAll(songList);
+        }
     }
 
     @Override
@@ -146,8 +158,6 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
         super.onDestroy();
     }
-
-
 
     @Override
     public void onBackPressed() {
@@ -229,6 +239,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         return super.onOptionsItemSelected(item);
     }
 
+    /* Button Methods */
     public void createStation(View view) {
         /**
          * Method called when Create button is pressed.
@@ -246,7 +257,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             try {
                 Message msg = Message.obtain(null, AppConstants.CREATE_STATION_CMD);
                 Bundle bundle = new Bundle();
-                bundle.putString(Networking.CREATE_STATION_CMD, stationToCreate);
+                bundle.putString(AppConstants.STATION_NAME_KEY, stationToCreate);
                 msg.setData(bundle);
                 msg.replyTo = mMessenger;
                 mService.send(msg);
@@ -254,6 +265,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 //e.printStackTrace();
             }
             currentStation = stationToCreate;
+
+            /* Clear songList for previous station*/
+            if(stationQueueAdapter != null) {
+                songList.clear();
+                stationQueueAdapter.clear();
+            }
         }
 
         createStationEdit.setText(null);
@@ -262,10 +279,15 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
     public void searchLocalMusic(View view) {
         //Intent intent = new Intent(this, MusicList.class);
         //startActivityForResult(intent, AppConstants.ADD_SONG_REQUEST_CODE);
-        FragmentManager fm = getFragmentManager();
-        ChooseMusicDialog chooseMusic = new ChooseMusicDialog();
-        chooseMusic.show(fm, "Choose Music Dialog");
+
+        if (currentStation != null) {
+            FragmentManager fm = getFragmentManager();
+            ChooseMusicDialog chooseMusic = new ChooseMusicDialog();
+            chooseMusic.show(fm, "Choose Music Dialog");
+        } else
+            Toast.makeText(getApplicationContext(), "Please join a station.", Toast.LENGTH_SHORT).show();
     }
+    /* End of button methods */
 
     public void leaveCurrentStation() {
         /**
@@ -275,7 +297,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         try {
             Message msg = Message.obtain(null, AppConstants.LEAVE_STATION_CMD);
             Bundle bundle = new Bundle();
-            bundle.putString(Networking.LEAVE_STATION_CMD, currentStation);
+            bundle.putString(AppConstants.STATION_NAME_KEY, currentStation);
             msg.setData(bundle);
             mService.send(msg);
             currentStation = null;
@@ -293,13 +315,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
         try {
             Message msg = Message.obtain(null, AppConstants.EXIT_JUKEBOX_NOTIFIER);
-            String command = Networking.EXIT_JUKEBOX_NOTIFIER;
-            Bundle bundle = new Bundle();
-            bundle.putString(Networking.EXIT_JUKEBOX_NOTIFIER, command);
-            msg.setData(bundle);
             mService.send(msg);
             stationList.clear();
             stationAdapter.clear();
+            songList.clear();
+            stationQueueAdapter.clear();
             //TODO Stop background music playback service
         } catch (RemoteException e) {
             //e.printStackTrace();
@@ -376,41 +396,59 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 /* */
                 /* Send message to service to send JOIN_STATION_CMD */
                     String stationName = stationList.get(position);
-
-                    if (currentStation != null) {
-
-                        if (!currentStation.equals(stationName)) {
-                            currentStation = stationName;
-                            Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                            Bundle bundle = new Bundle();
-                            bundle.putString(Networking.JOIN_STATION_CMD, stationName);
-                            msg.setData(bundle);
-
-                            try {
-                                mService.send(msg);
-                            } catch (RemoteException e) {
-                                //e.printStackTrace();
-                            }
-                            Toast.makeText(rootView.getContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(rootView.getContext(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        currentStation = stationName;
-                        Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
-                        Bundle bundle = new Bundle();
-                        bundle.putString(Networking.JOIN_STATION_CMD, stationName);
-                        msg.setData(bundle);
-
-                        try {
-                            mService.send(msg);
-                        } catch (RemoteException e) {
-                            //e.printStackTrace();
-                        }
-                        Toast.makeText(rootView.getContext(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
-                    }
+                    switchStation(stationName);
                 }
             });
+        }
+
+        public void switchStation(String stationName){
+
+            if (currentStation != null) {
+
+                if (!currentStation.equals(stationName)) {
+                    currentStation = stationName;
+                    Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                    Bundle bundle = new Bundle();
+                    bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                    msg.setData(bundle);
+
+                    try {
+                        mService.send(msg);
+                    } catch (RemoteException e) {
+                        //e.printStackTrace();
+                    }
+
+                    Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getActivity(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                currentStation = stationName;
+                Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
+                Bundle bundle = new Bundle();
+                bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                msg.setData(bundle);
+
+                try {
+                    mService.send(msg);
+                } catch (RemoteException e) {
+                    //e.printStackTrace();
+                }
+
+                Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
+            }
+
+            /* Clear songList for previous station*/
+            if(stationQueueAdapter != null) {
+                songList.clear();
+                stationQueueAdapter.clear();
+            }
+
+            /* Send request for new song queue */
+            Message msg = Message.obtain(null, AppConstants.GET_PLAYLIST_CMD);
+            Bundle bundle = new Bundle();
+            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+            msg.setData(bundle);
         }
 
         @Override
@@ -443,12 +481,19 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.my_station_fragment, container, false);
-            showMusicListView(rootView);
+            showStationQueue(rootView);
             return rootView;
         }
 
-        public void showMusicListView(final View rootView) {
-            musiclistView = (ListView) rootView.findViewById(R.id.song_queue_id);
+        public void showStationQueue(final View rootView) {
+            stationQueueListView = (ListView) rootView.findViewById(R.id.song_queue_id);
+            stationQueueAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
+            stationQueueAdapter.addAll(songList);
+            stationQueueListView.setAdapter(stationQueueAdapter);
+
+            if (stationQueueListView == null) {
+                return;
+            }
         }
 
         @Override
@@ -492,12 +537,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
     }
 
-    public static class ChooseMusicDialog extends DialogFragment{
+    public static class ChooseMusicDialog extends DialogFragment {
 
-        private ListView mMusiclist;
         MediaUtil music = new MediaUtil();
-        private List<Mp3Info> mp3Infos = null;
         MusicListAdapter listAdapter;
+        private ListView mMusiclist;
+        private List<Mp3Info> mp3Infos = null;
 
         public ChooseMusicDialog() {
 
@@ -518,8 +563,26 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             mMusiclist.setAdapter(listAdapter);
             mMusiclist.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
-                public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
+                    String songName = mp3Infos.get(position).getTitle();
+                    long songLength = mp3Infos.get(position).getDuration();
+                    String toastMessage = "Added " + songName + " to " + currentStation + " queue.";
+                    Toast.makeText(getActivity(), toastMessage, Toast.LENGTH_SHORT).show();
 
+                    /* Instruct service to send command to the server to add the song to the station */
+                    Message msg = Message.obtain(null, AppConstants.ADD_SONG_CMD);
+                    Bundle bundle = new Bundle();
+                    bundle.putString(AppConstants.STATION_NAME_KEY, currentStation);
+                    bundle.putString(AppConstants.SONG_NAME_KEY, songName);
+                    bundle.putString(AppConstants.SONG_LENGTH_KEY, Long.toString(songLength));
+                    msg.setData(bundle);
+                    try {
+                        mService.send(msg);
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+
+                    dismiss();
                 }
             });
 
@@ -544,7 +607,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 break;
                 case AppConstants.STATION_ADDED_NOTIFIER: {
                     Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(Networking.STATION_ADDED_NOTIFIER);
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
@@ -563,6 +626,38 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     }
                     stationList.remove(stationName);
                     stationAdapter.remove(stationName);
+                }
+                break;
+                case AppConstants.SONG_ADDED_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    if(currentStation.equals(stationName)) {
+                        if(!songList.contains(songName)) {
+                            songList.add(songName);
+                            stationQueueAdapter.add(songName);
+                        }
+                    }
+                }
+                break;
+                case AppConstants.SONG_REMOVED_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    if(currentStation.equals(stationName)) {
+                        songList.remove(songName);
+                        stationQueueAdapter.remove(songName);
+                    }
+                }
+                break;
+                case AppConstants.SONG_ON_LIST_RESPONSE: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    if(currentStation.equals(stationName)) {
+                        songList.add(songName);
+                        stationQueueAdapter.add(songName);
+                    }
                 }
                 break;
             }

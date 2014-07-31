@@ -37,6 +37,7 @@ public final class Networking {
     /* Response to devices  */
     public static final String STATION_LIST_REQUEST_RESPONSE = "/station_list_response";
     public static final String USER_ON_LIST_RESPONSE = "/user_on_list";
+    public static final String SONG_ON_LIST_RESPONSE = "/song_on_list";
 
     /* Separator string */
     public static final String SEPARATOR = ",";

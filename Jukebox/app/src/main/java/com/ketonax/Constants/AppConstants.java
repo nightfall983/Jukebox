@@ -9,6 +9,9 @@ public final class AppConstants {
     public final static String SERVICE_CONNECTED_STATUS = "service connected status";
     public final static String STATION_LIST_KEY = "station list";
     public final static String CURRENT_STATION_KEY = "current station";
+    public final static String STATION_NAME_KEY = "station name";
+    public final static String SONG_NAME_KEY = "song name";
+    public final static String SONG_LENGTH_KEY = "song length";
 
     /* The fragment argument representing the section number for a fragment. */
     public final static String ARG_SECTION_NUMBER = "section_number";
@@ -44,6 +47,7 @@ public final class AppConstants {
     /* Response to devices */
     public static final int STATION_LIST_REQUEST_RESPONSE = 19;
     public static final int USER_ON_LIST_RESPONSE = 20;
+    public static final int SONG_ON_LIST_RESPONSE = 21;
 
     /* Activity Request Codes */
     public static final int ADD_SONG_REQUEST_CODE = 1000;
