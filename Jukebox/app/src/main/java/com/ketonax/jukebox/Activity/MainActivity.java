@@ -30,7 +30,6 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import com.ketonax.Constants.AppConstants;
-import com.ketonax.Constants.Networking;
 import com.ketonax.Networking.NetworkingService;
 import com.ketonax.jukebox.Adapter.MusicListAdapter;
 import com.ketonax.jukebox.R;
@@ -61,7 +60,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
     /* Service Variables */ boolean mIsBound;
     private Messenger mMessenger = new Messenger(new IncomingHandler());
-    private NetworkingService networkService= null;
+    //private NetworkingService networkService = null;
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder binder) {
@@ -72,23 +71,23 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 Message msg = Message.obtain(null, AppConstants.MSG_REGISTER_CLIENT);
                 msg.replyTo = mMessenger;
                 mService.send(msg);
+                Log.i(AppConstants.APP_TAG, "Service is connected.");
 
                 Message rqstStationList = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_CMD);
                 mService.send(rqstStationList);
-                Log.i(AppConstants.APP_TAG, "Service is connected.");
             } catch (RemoteException e) {
                 /* Service has crashed before anything can be done */
                 //e.printStackTrace();
             }
 
             //NetworkingService.MyBinder b = (NetworkingService.MyBinder) binder;
-            networkService = new NetworkingService();
+            //networkService = new NetworkingService();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName componentName) {
             mIsBound = false;
-            networkService = null;
+            //networkService = null;
             Log.i(AppConstants.APP_TAG, "Service is disconnected.");
         }
     };
@@ -137,8 +136,10 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         super.onResume();
 
         /* Reset station list view */
-        stationAdapter.clear();
-        stationAdapter.addAll(stationList);
+        if (stationAdapter != null) {
+            stationAdapter.clear();
+            stationAdapter.addAll(stationList);
+        }
 
         /* Reset station queue view */
         if (stationQueueAdapter != null) {
@@ -162,7 +163,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
         try {
             exitJukebox();
-            unbindService();
+            doUnbindService();
         } catch (Throwable t) {
             Log.e("MainActivity", "Failed to unbind from the service", t);
         }
@@ -173,7 +174,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
     public void onBackPressed() {
         try {
             exitJukebox();
-            unbindService();
+            doUnbindService();
         } catch (Throwable t) {
             Log.e("MainActivity", "Failed to unbind from the service", t);
         }
@@ -331,9 +332,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             Message msg = Message.obtain(null, AppConstants.EXIT_JUKEBOX_NOTIFIER);
             mService.send(msg);
             stationList.clear();
-            stationAdapter.clear();
             songList.clear();
-            stationQueueAdapter.clear();
+            if (stationAdapter != null) {
+                stationAdapter.clear();
+            }
+            if (stationQueueAdapter != null)
+                stationQueueAdapter.clear();
+
             //TODO Stop background music playback service
         } catch (RemoteException e) {
             //e.printStackTrace();
@@ -348,7 +353,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         mIsBound = true;
     }
 
-    private void unbindService() {
+    private void doUnbindService() {
         /** This method disconnects from a service */
 
         if (mIsBound) {
@@ -361,9 +366,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 } catch (RemoteException e) {
                     //e.printStackTrace();
                 }
+                unbindService(mConnection);
             }
-
-            unbindService(mConnection);
         }
     }
 
@@ -407,7 +411,6 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 @Override
                 public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
 
-                /* */
                 /* Send message to service to send JOIN_STATION_CMD */
                     String stationName = stationList.get(position);
                     joinStation(stationName);
@@ -616,7 +619,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             switch (msg.what) {
                 case AppConstants.STATION_LIST_REQUEST_RESPONSE: {
                     Bundle bundle = msg.getData();
-                    String stationName = bundle.getString(Networking.STATION_LIST_REQUEST_RESPONSE);
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
@@ -674,7 +677,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
                     if (currentStation.equals(stationName)) {
                         songList.add(songName);
-                        stationQueueAdapter.add(songName);
+                        if (stationQueueAdapter != null)
+                            stationQueueAdapter.add(songName);
                     }
                 }
                 break;
@@ -709,9 +713,9 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 case AppConstants.PLAY_SONG_CMD: {
                     Bundle bundle = msg.getData();
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
-                    Toast.makeText(getApplicationContext(),"Will start streaming song", Toast.LENGTH_SHORT).show();
-                    for(String userIP : userIPList){
-                        networkService.sendSong(userIP, Networking.TCP_PORT_NUMBER, songName);
+                    Toast.makeText(getApplicationContext(), "Will start streaming song", Toast.LENGTH_SHORT).show();
+                    for (String userIP : userIPList) {
+                        //networkService.sendSong(userIP, Networking.TCP_PORT_NUMBER, songName);
                     }
                 }
                 break;

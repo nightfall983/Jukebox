@@ -124,6 +124,9 @@ public class Server {
 					log("User at " + userSocketAddress + " has disconnected.");
 				} else if (userMessage
 						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
+					
+					if(!allUsers.contains(userSocketAddress))
+						allUsers.add(userSocketAddress);
 
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
@@ -166,6 +169,10 @@ public class Server {
 		 */
 		if (currentStationMap.containsKey(userAddress)) {
 			Station oldStation = currentStationMap.get(userAddress);
+			
+			if(stationName.equals(oldStation.getName()))
+				throw new ServerException(stationName
+						+ " station already on stationList.");
 
 			try {
 				if (oldStation.hasUser(userAddress))

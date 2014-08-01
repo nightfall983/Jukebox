@@ -379,7 +379,7 @@ public class NetworkingService extends Service {
                             Log.d(AppConstants.APP_TAG, Networking.STATION_KILLED_NOTIFIER);
                             String stationName = msgArray[1];
                             Bundle bundle = new Bundle();
-                            bundle.putString(Networking.STATION_KILLED_NOTIFIER, stationName);
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
                             Message msg = Message.obtain(null, AppConstants.STATION_KILLED_NOTIFIER);
                             msg.setData(bundle);
                             try {
@@ -393,7 +393,7 @@ public class NetworkingService extends Service {
                             String stationName = msgArray[1];
 
                             Bundle bundle = new Bundle();
-                            bundle.putString(Networking.STATION_ADDED_NOTIFIER, stationName);
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
                             Message msg = Message.obtain(null, AppConstants.STATION_ADDED_NOTIFIER);
                             msg.setData(bundle);
                             try {
