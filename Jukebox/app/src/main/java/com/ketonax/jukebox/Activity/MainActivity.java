@@ -30,17 +30,21 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import com.ketonax.Constants.AppConstants;
+import com.ketonax.Constants.Networking;
 import com.ketonax.Networking.NetworkingService;
 import com.ketonax.jukebox.Adapter.MusicListAdapter;
+import com.ketonax.jukebox.Playback.PlayMusicService;
 import com.ketonax.jukebox.R;
 import com.ketonax.jukebox.Util.MediaUtil;
 import com.ketonax.jukebox.Util.Mp3Info;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class MainActivity extends Activity implements NavigationDrawerFragment.NavigationDrawerCallbacks {
+public class MainActivity extends Activity implements NavigationDrawerFragment
+        .NavigationDrawerCallbacks {
 
     static Messenger mService;
 
@@ -57,10 +61,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
     /* Other variables*/
     static String currentStation;
+    static HashMap<String, Mp3Info> musicMap = new HashMap<String, Mp3Info>();
+    static HashMap<String, String> stationQueueMap = new HashMap<String, String>();
 
     /* Service Variables */ boolean mIsBound;
     private Messenger mMessenger = new Messenger(new IncomingHandler());
-    //private NetworkingService networkService = null;
+
     private ServiceConnection mConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder binder) {
@@ -73,15 +79,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 mService.send(msg);
                 Log.i(AppConstants.APP_TAG, "Service is connected.");
 
-                Message rqstStationList = Message.obtain(null, AppConstants.STATION_LIST_REQUEST_CMD);
+                Message rqstStationList = Message.obtain(null,
+                        AppConstants.STATION_LIST_REQUEST_CMD);
                 mService.send(rqstStationList);
             } catch (RemoteException e) {
                 /* Service has crashed before anything can be done */
                 //e.printStackTrace();
             }
-
-            //NetworkingService.MyBinder b = (NetworkingService.MyBinder) binder;
-            //networkService = new NetworkingService();
         }
 
         @Override
@@ -109,11 +113,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             mIsBound = savedInstanceState.getBoolean(AppConstants.SERVICE_CONNECTED_STATUS);
         }
 
-        mNavigationDrawerFragment = (NavigationDrawerFragment) getFragmentManager().findFragmentById(R.id.navigation_drawer);
+        mNavigationDrawerFragment = (NavigationDrawerFragment) getFragmentManager()
+                .findFragmentById(R.id.navigation_drawer);
         mTitle = getTitle();
 
         /* Set up the drawer. */
-        mNavigationDrawerFragment.setUp(R.id.navigation_drawer, (DrawerLayout) findViewById(R.id.drawer_layout));
+        mNavigationDrawerFragment.setUp(R.id.navigation_drawer, (DrawerLayout) findViewById(R.id
+                .drawer_layout));
     }
 
     //for rotation
@@ -188,13 +194,16 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
         switch (position) {
             case 0:
-                fragmentManager.beginTransaction().replace(R.id.container, JoinStationFragment.newInstance(position + 1)).commit();
+                fragmentManager.beginTransaction().replace(R.id.container,
+                        JoinStationFragment.newInstance(position + 1)).commit();
                 break;
             case 1:
-                fragmentManager.beginTransaction().replace(R.id.container, MyStationFragment.newInstance(position + 1)).commit();
+                fragmentManager.beginTransaction().replace(R.id.container,
+                        MyStationFragment.newInstance(position + 1)).commit();
                 break;
             case 2:
-                fragmentManager.beginTransaction().replace(R.id.container, AboutInfoFragment.newInstance(position + 1)).commit();
+                fragmentManager.beginTransaction().replace(R.id.container,
+                        AboutInfoFragment.newInstance(position + 1)).commit();
                 break;
         }
     }
@@ -205,10 +214,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                 mTitle = getString(R.string.title_section1);
                 break;
             case 2:
-                if (currentStation != null)
+                if (currentStation != null) {
                     mTitle = currentStation;
-                else
+                } else {
                     mTitle = getString(R.string.title_section2);
+                }
                 break;
             case 3:
                 mTitle = getString(R.string.title_section3);
@@ -262,8 +272,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         stationToCreate = createStationEdit.getText().toString();
 
         if (stationToCreate.isEmpty()) {
-            Toast.makeText(getApplicationContext(), "Please enter a name for the station.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "Please enter a name for the station.",
+                    Toast.LENGTH_SHORT).show();
         } else {
+
+            /* Stop media playback */
+            stopPlayback();
+
             /* Send stationToCreate to service */
             try {
                 Message msg = Message.obtain(null, AppConstants.CREATE_STATION_CMD);
@@ -299,10 +314,27 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             FragmentManager fm = getFragmentManager();
             ChooseMusicDialog chooseMusic = new ChooseMusicDialog();
             chooseMusic.show(fm, "Choose Music Dialog");
-        } else
-            Toast.makeText(getApplicationContext(), "Please join a station.", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(getApplicationContext(), "Please join a station.",
+                    Toast.LENGTH_SHORT).show();
+        }
     }
     /* End of button methods */
+
+    public void startPlayback(String songName, String songPath) {
+
+        /* Stop any currently playing song */
+        stopPlayback();
+        Intent intent = new Intent(getApplicationContext(), PlayMusicService.class);
+        intent.putExtra(PlayMusicService.SONG_NAME, songName);
+        intent.putExtra(PlayMusicService.PATH_TO_SONG, songPath);
+        startService(intent);
+    }
+
+    public void stopPlayback() {
+        Intent intent = new Intent(getApplicationContext(), PlayMusicService.class);
+        stopService(intent);
+    }
 
     public void leaveCurrentStation() {
         /**
@@ -321,13 +353,49 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
     }
 
+    public static void deleteCache(Context context) {
+        /** This method deletes the application cache.
+         * @param context: The context in which this function is called */
+
+        try {
+            File dir = context.getCacheDir();
+            if (dir != null && dir.isDirectory()) {
+                deleteDir(dir);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static boolean deleteDir(File dir) {
+        /** Delete a directory.
+         * @param dir: The directory to be deleted */
+
+         if (dir != null && dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                boolean success = deleteDir(new File(dir, children[i]));
+                if (!success) {
+                    return false;
+                }
+            }
+        }
+        return dir.delete();
+    }
+
     public void exitJukebox() {
         /**
          * This method sends an exit command to the Networking service
          */
 
-        leaveCurrentStation();
+        /* Stop any music currently playing */
+        stopPlayback();
 
+        /* Delete application cache */
+        deleteCache(this);
+
+        /* Instruct server to remove user from current station and exit the service */
+        leaveCurrentStation();
         try {
             Message msg = Message.obtain(null, AppConstants.EXIT_JUKEBOX_NOTIFIER);
             mService.send(msg);
@@ -336,8 +404,10 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             if (stationAdapter != null) {
                 stationAdapter.clear();
             }
-            if (stationQueueAdapter != null)
+
+            if (stationQueueAdapter != null) {
                 stationQueueAdapter.clear();
+            }
 
             //TODO Stop background music playback service
         } catch (RemoteException e) {
@@ -349,7 +419,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
     private void doBindService() {
         /** This method establishes a connection with a service */
 
-        bindService(new Intent(this, NetworkingService.class), mConnection, Context.BIND_AUTO_CREATE);
+        bindService(new Intent(this, NetworkingService.class), mConnection,
+                Context.BIND_AUTO_CREATE);
         mIsBound = true;
     }
 
@@ -391,7 +462,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.join_station_fragment, container, false);
             showStationListView(rootView);
             return rootView;
@@ -400,7 +472,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         public void showStationListView(final View rootView) {
 
             stationListView = (ListView) rootView.findViewById(R.id.station_list_view);
-            stationAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
+            stationAdapter = new ArrayAdapter<String>(getActivity(),
+                    android.R.layout.simple_list_item_1, android.R.id.text1);
             stationAdapter.addAll(stationList);
 
             if (stationListView == null) {
@@ -409,7 +482,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             stationListView.setAdapter(stationAdapter);
             stationListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
-                public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
+                public void onItemClick(AdapterView<?> adapterView, View view, int position,
+                                        long l) {
 
                 /* Send message to service to send JOIN_STATION_CMD */
                     String stationName = stationList.get(position);
@@ -418,7 +492,28 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             });
         }
 
+        public void stopPlayback() {
+            Intent intent = new Intent(getActivity().getApplicationContext(),
+                    PlayMusicService.class);
+            getActivity().getApplication().getApplicationContext().stopService(intent);
+        }
+
         public void joinStation(String stationName) {
+            /** Send command to server to join a station */
+
+            /* Clear any playlist info for previous station */
+            if (stationQueueAdapter != null) {
+                stationQueueMap.clear();
+                songList.clear();
+                stationQueueAdapter.clear();
+            }
+
+            /* Clear userIPList and udpPortMap for previous station */
+            userIPList.clear();
+            udpPortMap.clear();
+
+            /* Stop music playback */
+            stopPlayback();
 
             if (currentStation != null) {
 
@@ -435,9 +530,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                         //e.printStackTrace();
                     }
 
-                    Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getActivity(), "Joining " + stationName,
+                            Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(getActivity(), "You are already connected to this station ", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getActivity(), "You are already connected to this station ",
+                            Toast.LENGTH_SHORT).show();
                 }
             } else {
                 currentStation = stationName;
@@ -454,28 +551,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
                 Toast.makeText(getActivity(), "Joining " + stationName, Toast.LENGTH_SHORT).show();
             }
-
-            /* Clear songList for previous station */
-            if (stationQueueAdapter != null) {
-                songList.clear();
-                stationQueueAdapter.clear();
-            }
-
-            /* Send request for new song queue */
-            /*Message msg = Message.obtain(null, AppConstants.GET_PLAYLIST_CMD);
-            Bundle bundle = new Bundle();
-            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
-            msg.setData(bundle); */
-
-            /* Clear userIPList and udpPortMap for previous station */
-            userIPList.clear();
-            udpPortMap.clear();
         }
 
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants
+                    .ARG_SECTION_NUMBER));
         }
     }
 
@@ -500,7 +582,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.my_station_fragment, container, false);
             showStationQueue(rootView);
             return rootView;
@@ -508,7 +591,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
         public void showStationQueue(final View rootView) {
             stationQueueListView = (ListView) rootView.findViewById(R.id.song_queue_id);
-            stationQueueAdapter = new ArrayAdapter<String>(getActivity(), android.R.layout.simple_list_item_1, android.R.id.text1);
+            stationQueueAdapter = new ArrayAdapter<String>(getActivity(),
+                    android.R.layout.simple_list_item_1, android.R.id.text1);
             stationQueueAdapter.addAll(songList);
             stationQueueListView.setAdapter(stationQueueAdapter);
 
@@ -520,7 +604,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants
+                    .ARG_SECTION_NUMBER));
         }
     }
 
@@ -546,7 +631,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
             View rootView = inflater.inflate(R.layout.about_info_fragment, container, false);
             return rootView;
         }
@@ -554,7 +640,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
         @Override
         public void onAttach(Activity activity) {
             super.onAttach(activity);
-            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants.ARG_SECTION_NUMBER));
+            ((MainActivity) activity).onSectionAttached(getArguments().getInt(AppConstants
+                    .ARG_SECTION_NUMBER));
         }
     }
 
@@ -571,7 +658,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
 
         @Nullable
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
 
             View view = inflater.inflate(R.layout.music_list, container);
             getDialog().setTitle(R.string.title_choose_music);
@@ -584,13 +672,17 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
             mMusiclist.setAdapter(listAdapter);
             mMusiclist.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
-                public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-                    String songName = mp3Infos.get(position).getTitle();
-                    long songLength = mp3Infos.get(position).getDuration();
-                    String toastMessage = "Added " + songName + " to " + currentStation + " queue.";
-                    Toast.makeText(getActivity(), toastMessage, Toast.LENGTH_SHORT).show();
+                public void onItemClick(AdapterView<?> adapterView, View view, int position,
+                                        long l) {
+                    Mp3Info selectedSong = mp3Infos.get(position);
+                    String songName = selectedSong.getTitle();
+                    long songLength = selectedSong.getDuration();
 
-                    /* Instruct service to send command to the server to add the song to the station */
+                    /* Add selected song to musicMap */
+                    musicMap.put(songName, selectedSong);
+
+                    /* Instruct service to send command to the server to add the song to the
+                    station */
                     Message msg = Message.obtain(null, AppConstants.ADD_SONG_CMD);
                     Bundle bundle = new Bundle();
                     bundle.putString(AppConstants.STATION_NAME_KEY, currentStation);
@@ -602,6 +694,9 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
+
+                    String toastMessage = "Added " + songName + " to " + currentStation + " queue.";
+                    Toast.makeText(getActivity(), toastMessage, Toast.LENGTH_SHORT).show();
 
                     dismiss();
                 }
@@ -623,6 +718,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
+                        Log.i(AppConstants.APP_TAG, "Added " + stationName + " to station list.");
                     }
                 }
                 break;
@@ -632,6 +728,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     if (!stationList.contains(stationName)) {
                         stationList.add(stationName);
                         stationAdapter.add(stationName);
+                        Log.i(AppConstants.APP_TAG, "Added " + stationName + " to station list.");
                     }
                 }
                 break;
@@ -647,6 +744,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     }
                     stationList.remove(stationName);
                     stationAdapter.remove(stationName);
+                    Log.i(AppConstants.APP_TAG, "Removed " + stationName + " from station list.");
                 }
                 break;
                 case AppConstants.SONG_ADDED_NOTIFIER: {
@@ -656,8 +754,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     if (currentStation.equals(stationName)) {
                         if (!songList.contains(songName)) {
                             songList.add(songName);
-                            stationQueueAdapter.add(songName);
+
+                            if (stationQueueAdapter != null) {
+                                stationQueueAdapter.add(songName);
+                            }
                         }
+                        Log.i(AppConstants.APP_TAG, "Added  " + songName + " to " +
+                                currentStation + " play queue.");
                     }
                 }
                 break;
@@ -667,7 +770,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
                     if (currentStation.equals(stationName)) {
                         songList.remove(songName);
-                        stationQueueAdapter.remove(songName);
+                        if (stationQueueAdapter != null) {
+                            stationQueueAdapter.remove(songName);
+                        }
+                        Log.i(AppConstants.APP_TAG, "Removed  " + songName + " from " +
+                                currentStation + " play queue.");
                     }
                 }
                 break;
@@ -677,8 +784,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
                     if (currentStation.equals(stationName)) {
                         songList.add(songName);
-                        if (stationQueueAdapter != null)
+                        if (stationQueueAdapter != null) {
                             stationQueueAdapter.add(songName);
+                        }
+                        Log.i(AppConstants.APP_TAG, "Added " + songName + " to station: " +
+                                currentStation + " play queue.");
                     }
                 }
                 break;
@@ -687,9 +797,17 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String userIP = bundle.getString(AppConstants.USER_IP_KEY);
                     int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
-                    if (!userIPList.contains(userIP))
+
+                    String deviceIP = Networking.getLocalIP();
+                    Log.d(AppConstants.APP_TAG, "This device IP is: " + deviceIP);
+
+                    if (currentStation.equals(stationName) && !userIPList.contains(userIP) &&
+                            !userIP.equals(deviceIP)) {
                         userIPList.add(userIP);
-                    udpPortMap.put(userIP, udpPort);
+                        udpPortMap.put(userIP, udpPort);
+                        Log.i(AppConstants.APP_TAG, "Added user at " + userIP + " to station user" +
+                                " list.");
+                    }
                 }
                 break;
                 case AppConstants.USER_REMOVED_NOTIFIER: {
@@ -697,8 +815,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String userIP = bundle.getString(AppConstants.USER_IP_KEY);
                     int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
-                    userIPList.remove(userIP);
-                    udpPortMap.remove(userIP);
+                    if (currentStation.equals(stationName)) {
+                        userIPList.remove(userIP);
+                        udpPortMap.remove(userIP);
+                        Log.i(AppConstants.APP_TAG, "Removed user at " + userIP + " from station " +
+                                "user list.");
+                    }
                 }
                 break;
                 case AppConstants.USER_ON_LIST_RESPONSE: {
@@ -706,17 +828,99 @@ public class MainActivity extends Activity implements NavigationDrawerFragment.N
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String userIP = bundle.getString(AppConstants.USER_IP_KEY);
                     int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
-                    userIPList.add(userIP);
-                    udpPortMap.put(userIP, udpPort);
+
+                    String deviceIP = Networking.getLocalIP();
+
+                    if (currentStation.equals(stationName) && !userIPList.contains(userIP) &&
+                            !userIP.equals(deviceIP)) {
+                        userIPList.add(userIP);
+                        udpPortMap.put(userIP, udpPort);
+                        Log.i(AppConstants.APP_TAG, "Added user at " + userIP + " to station user" +
+                                " list.");
+                    }
                 }
                 break;
-                case AppConstants.PLAY_SONG_CMD: {
+                case AppConstants.CURRENTLY_PLAYING_NOTIFIER: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String ownerIP = bundle.getString(AppConstants.USER_IP_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+
+                    if (stationName.equals(currentStation)) {
+
+                        if (ownerIP.equals(Networking.getLocalIP())) {
+
+                        /* Local music playback */
+                            Mp3Info song = musicMap.get(songName);
+                            String songPath = song.getUrl();
+
+                        /* Start playing song */
+                            startPlayback(songName, songPath);
+                        } else {
+                            String songPath = stationQueueMap.get(songName);
+
+                        /* Start playing song */
+                            startPlayback(songName, songPath);
+                        }
+                        Log.i(AppConstants.APP_TAG, songName + " is currently playing on station:" +
+                                " " + currentStation);
+                    } else {
+                        Log.e(AppConstants.APP_TAG, "Can't play song from station: " +
+                                stationName + " because user is on station: " + currentStation);
+                    }
+                }
+                break;
+                case AppConstants.SEND_SONG_CMD: {
+                    Log.i(AppConstants.APP_TAG, "Received " + Networking.SEND_SONG_CMD + " from " +
+                            "station: " + currentStation);
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+
+                    if (stationName.equals(currentStation)) {
+
+                        /* Send song to other devices */
+                        Mp3Info song = musicMap.get(songName);
+
+                        for (String userIP : userIPList) {
+                            NetworkingService.sendSong(userIP, song);
+                        }
+
+                        Log.i(AppConstants.APP_TAG, "Sending songs to users on " + currentStation);
+                    } else {
+                        Log.e(AppConstants.APP_TAG, "Can't send song from station: " +
+                                stationName + " because user is at station: " + currentStation);
+                    }
+                }
+                break;
+                case AppConstants.SONG_DOWNLOADED: {
                     Bundle bundle = msg.getData();
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
-                    Toast.makeText(getApplicationContext(), "Will start streaming song", Toast.LENGTH_SHORT).show();
-                    for (String userIP : userIPList) {
-                        //networkService.sendSong(userIP, Networking.TCP_PORT_NUMBER, songName);
+                    String songPath = bundle.getString(AppConstants.SONG_PATH_KEY);
+
+                    /* Put song name and path into statioQueueMap */
+                    stationQueueMap.put(songName, songPath);
+
+                    /* Play the downloaded song */
+                    // Toast.makeText(getApplicationContext(), "Current song on queue downloaded.",
+                    //Toast.LENGTH_SHORT).show();
+                    //startPlayback(songName, songPath);
+
+                    Bundle responseBundle = new Bundle();
+                    responseBundle.putString(AppConstants.STATION_NAME_KEY, currentStation);
+                    Message msgResponse = Message.obtain(null,
+                            AppConstants.SONG_DOWNLOADED_NOTIFIER);
+                    msgResponse.setData(responseBundle);
+                    try {
+                        if (mService != null) {
+                            mService.send(msgResponse);
+                        }
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
                     }
+
+                    Log.i(AppConstants.APP_TAG, "Sent " + Networking.SONG_DOWNLOADED_NOTIFIER +
+                            " to station:" + currentStation);
                 }
                 break;
             }

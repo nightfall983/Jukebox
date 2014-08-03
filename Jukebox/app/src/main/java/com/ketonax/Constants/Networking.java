@@ -2,17 +2,20 @@ package com.ketonax.Constants;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 
 /**
  * Created by nightfall on 7/13/14.
  */
 public final class Networking {
     /* Commands from server */
-    public static final String PLAY_SONG_CMD = "/play_song";
+    public static final String SEND_SONG_CMD = "/send_song";
 
     /* Commands to server */
     public static final String CREATE_STATION_CMD = "/new_station";
@@ -32,6 +35,7 @@ public final class Networking {
     public static final String CURRENTLY_PLAYING_NOTIFIER = "/currently_playing";
 
     /* Notifications to server */
+    public static final String SONG_DOWNLOADED_NOTIFIER = "/song_downloaded";
     public static final String EXIT_JUKEBOX_NOTIFIER = "/jukebox_user_exit";
 
     /* Response to devices  */
@@ -49,13 +53,13 @@ public final class Networking {
     public static final int DATA_LIMIT_SIZE = 1024;
 
     /* Server IP address */
-    public static final String SERVER_IP_STRING = "192.168.206.87";
+    public static final String SERVER_IP_STRING = "192.168.1.143";
 
     /* Server port */
     public static final int SERVER_PORT = 61001;
 
     /* TCP PORT */
-    public static final int TCP_PORT_NUMBER = 6000;
+    public static final int TCP_PORT_NUMBER = 5000;
 
 
     /* Multicast */
@@ -65,7 +69,42 @@ public final class Networking {
 
     private static DatagramSocket udpSocket = null;
 
+    public static String getLocalIP(){
+        /** Returns devices IP address */
+
+        String ip = null;
+        Enumeration<NetworkInterface> interfaces = null;
+
+        try {
+            interfaces = NetworkInterface.getNetworkInterfaces();
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        while (interfaces.hasMoreElements()) {
+            NetworkInterface current = interfaces.nextElement();
+
+            try {
+                if (!current.isUp() || current.isLoopback()
+                        || current.isVirtual())
+                    continue;
+            } catch (SocketException e) {
+                e.printStackTrace();
+            }
+
+            Enumeration<InetAddress> addresses = current.getInetAddresses();
+            while (addresses.hasMoreElements()) {
+                InetAddress current_addr = addresses.nextElement();
+                if (current_addr instanceof Inet4Address)
+                    ip = current_addr.getHostAddress();
+            }
+        }
+
+        return ip;
+    }
+
     public static DatagramSocket getSocket(){
+        /** Returns a UDP socket */
 
         if(udpSocket == null){
             try {
@@ -78,8 +117,8 @@ public final class Networking {
         return udpSocket;
     }
 
-    /** Returns Multicast socket for group messages */
     public static MulticastSocket getMulticastSocket(){
+        /** Returns Multicast socket for group messages */
 
         if(groupSocket == null){
             try {
@@ -92,8 +131,8 @@ public final class Networking {
         return groupSocket;
     }
 
-    /** Returns InetAddress for multicast */
     public static InetAddress getGroupAddress() {
+        /** Returns InetAddress for multicast */
 
         InetAddress groupAddress = null;
         try {

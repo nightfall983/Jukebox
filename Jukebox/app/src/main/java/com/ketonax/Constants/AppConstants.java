@@ -12,6 +12,7 @@ public final class AppConstants {
     public final static String STATION_NAME_KEY = "station name";
     public final static String SONG_NAME_KEY = "song name";
     public final static String SONG_LENGTH_KEY = "song length";
+    public final static String SONG_PATH_KEY = "song path ";
     public final static String USER_IP_KEY = "user ip";
     public final static String USER_UDP_PORT_KEY = "udp port";
 
@@ -23,7 +24,7 @@ public final class AppConstants {
     public final static int MSG_UNREGISTER_CLIENT = 2;
 
     /* Commands To Devices */
-    public static final int PLAY_SONG_CMD = 3;
+    public static final int SEND_SONG_CMD = 3;
 
     /* Commands to server */
     public static final int CREATE_STATION_CMD = 4;
@@ -35,9 +36,9 @@ public final class AppConstants {
 
     /* Notifications to server */
     public static final int EXIT_JUKEBOX_NOTIFIER = 10;
+    public static final int SONG_DOWNLOADED_NOTIFIER = 11;
 
     /* Notifications from server */
-    public static final int STATION_LIST_NOTIFIER = 11;
     public static final int STATION_KILLED_NOTIFIER = 12;
     public static final int STATION_ADDED_NOTIFIER = 13;
     public static final int SONG_ADDED_NOTIFIER = 14;
@@ -51,6 +52,6 @@ public final class AppConstants {
     public static final int USER_ON_LIST_RESPONSE = 20;
     public static final int SONG_ON_LIST_RESPONSE = 21;
 
-    /* Activity Request Codes */
-    public static final int ADD_SONG_REQUEST_CODE = 1000;
+    /* TCP Receiver notification */
+    public static final int SONG_DOWNLOADED = 22;
 }

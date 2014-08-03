@@ -29,6 +29,8 @@ public class Station implements Runnable {
 	private Map<String, SocketAddress> songSourceMap = null;
 	private InetAddress groupAddress = null;
 
+	private int playSongTimeout = 30; // Seconds
+	private int currentSongDownloadCount = 0;
 	private boolean stopRunning = false;
 
 	public Station(String stationName, SocketAddress userSocketAddres,
@@ -74,9 +76,31 @@ public class Station implements Runnable {
 			while (it.hasNext() && !userList.isEmpty()) {
 				String song = it.next();
 				try {
+
+					/* Wait for 1 second, then play the next song */
 					Thread.sleep(1000); // Not sure why, but fixes songLengthMap
 										// // issue.
-					playSong(song);
+
+					/*
+					 * Send notification to song holder to download the current
+					 * song.
+					 */
+					SocketAddress holderSongAddress = songSourceMap.get(song);
+					String[] elements = { Networking.SEND_SONG_CMD,
+							stationName, song };
+					String command = MessageBuilder.buildMessage(elements,
+							Networking.SEPERATOR);
+					sendToUser(command, holderSongAddress);
+
+					/*
+					 * Wait for notification from users that song has been
+					 * downloaded or timeout has occured.
+					 */
+					boolean beginPlay = readyToPlay();
+
+					if (beginPlay == true)
+						playSong(song);
+
 				} catch (StationException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
@@ -131,9 +155,15 @@ public class Station implements Runnable {
 				sendPlaylist(userAddress);
 				sendUserList(userAddress);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+
+			String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
+					userAddress.toString() };
+			String notification = MessageBuilder.buildMessage(elements,
+					Networking.SEPERATOR);
+			// sendMulticastMessage(notification);
+			sendToAll(notification);
 		} else
 			throw new StationException("User is already on the list");
 	}
@@ -155,9 +185,10 @@ public class Station implements Runnable {
 				userAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
+		// sendMulticastMessage(notification);
 		sendToAll(notification);
-		log("User at " + userAddress + " has been removed.");
+		log("User at " + userAddress + " has been removed."
+				+ " User list size = " + userList.size());
 	}
 
 	public void addSong(SocketAddress userAddress, String songName,
@@ -185,9 +216,10 @@ public class Station implements Runnable {
 
 		String notification = Networking.SONG_ADDED_NOTIFIER + ","
 				+ stationName + "," + songName;
-		//sendMulticastMessage(notification);
+		// sendMulticastMessage(notification);
 		sendToAll(notification);
-		log(songName + " has been added to the station.");
+		log("\"" + songName + "\" has been added to the station by user at "
+				+ userAddress + "." + " Songs on queue = " + songQueue.size());
 	}
 
 	public void removeSong(String songName) throws StationException {
@@ -213,9 +245,10 @@ public class Station implements Runnable {
 				songName };
 		String notification = MessageBuilder.buildMessage(elements,
 				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
+		// sendMulticastMessage(notification);
 		sendToAll(notification);
-		log(songName + " has been removed from the station");
+		log(songName + " has been removed from the station."
+				+ " Songs on queue = " + songQueue.size());
 	}
 
 	public SocketAddress getSongSource(String songName) throws StationException {
@@ -236,49 +269,6 @@ public class Station implements Runnable {
 					+ songName + "\" is not on songLengthMap.");
 
 		return songLengthMap.get(songName);
-	}
-
-	/* Networking dependent functions */
-	public void userAddedNotifier(SocketAddress addedUserSocketAddress) {
-		/**
-		 * This function notifies all devices that a new user has been added. It
-		 * sends the socket address of the user to the devices.
-		 */
-
-		String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
-				addedUserSocketAddress.toString() };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
-		sendToAll(notification);
-		log("User at " + addedUserSocketAddress
-				+ " has been added to the station");
-	}
-
-	public void songAddedNotifier(String songName) {
-		/**
-		 * This function notifies all devices that a new song has been added to
-		 * the queue.
-		 */
-
-		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
-		sendToAll(notification);
-	}
-
-	public void songRemovedNotifier(String songName) {
-		/**
-		 * This function notifies all devices that a new song has been removed
-		 * to the queue.
-		 */
-
-		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName, songName };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
-		sendToAll(notification);
 	}
 
 	public void sendPlaylist(SocketAddress userSocketAddress)
@@ -302,6 +292,94 @@ public class Station implements Runnable {
 				+ userSocketAddress);
 	}
 
+	public void incrementSongDownloaded() {
+		currentSongDownloadCount++;
+	}
+
+	private void resetCount() {
+		/**
+		 * This method resets a counter that keeps track of how many times the
+		 * current song has been downloaded.
+		 */
+		currentSongDownloadCount = 0;
+	}
+
+	private boolean readyToPlay() {
+		/**
+		 * This method checks to see that the current song is ready to play. It
+		 * checks to see that the number of times the song has been downloaded
+		 * matches the userList size.
+		 */
+
+		resetCount();
+
+		/* Timer */
+		int timeLeft = playSongTimeout - 1;
+		while (timeLeft >= 0) {
+			/*
+			 * Check to see that all users have downloaded the song (except the
+			 * song holder).
+			 */
+
+			if (currentSongDownloadCount == userList.size() - 1)
+				break;
+			else {
+				timeLeft--;
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/* Networking dependent functions */
+	public void userAddedNotifier(SocketAddress addedUserSocketAddress) {
+		/**
+		 * This function notifies all devices that a new user has been added. It
+		 * sends the socket address of the user to the devices.
+		 */
+
+		String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
+				addedUserSocketAddress.toString() };
+		String notification = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
+		// sendMulticastMessage(notification);
+		sendToAll(notification);
+		log("User at " + addedUserSocketAddress
+				+ " has been added to the station");
+	}
+
+	public void songAddedNotifier(String songName) {
+		/**
+		 * This function notifies all devices that a new song has been added to
+		 * the queue.
+		 */
+
+		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
+		String notification = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
+		// sendMulticastMessage(notification);
+		sendToAll(notification);
+	}
+
+	public void songRemovedNotifier(String songName) {
+		/**
+		 * This function notifies all devices that a new song has been removed
+		 * to the queue.
+		 */
+
+		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName,
+				songName };
+		String notification = MessageBuilder.buildMessage(elements,
+				Networking.SEPERATOR);
+		// sendMulticastMessage(notification);
+		sendToAll(notification);
+	}
+
 	public void sendUserList(SocketAddress userSocketAddress)
 			throws IOException {
 		/**
@@ -323,7 +401,7 @@ public class Station implements Runnable {
 				+ userSocketAddress);
 	}
 
-	public void sendToUser(String message, SocketAddress userSocketAddress) {
+	private void sendToUser(String message, SocketAddress userSocketAddress) {
 		/** Sends a message to a specified device. */
 
 		// Parse userSocketAddress
@@ -353,13 +431,14 @@ public class Station implements Runnable {
 		}
 	}
 
-	public void sendMulticastMessage(String message) {
+	@SuppressWarnings("unused")
+	private void sendMulticastMessage(String message) {
 		/** This function sends a multicast message to all users in the group */
 
 		byte[] sendData = message.getBytes();
 		DatagramPacket sendPacket = new DatagramPacket(sendData,
 				sendData.length, groupAddress, Networking.GROUP_PORT);
-		
+
 		try {
 			udpServerSocket.send(sendPacket);
 		} catch (IOException e) {
@@ -367,16 +446,16 @@ public class Station implements Runnable {
 		}
 	}
 
-	public void sendToAll(String message) {
+	private void sendToAll(String message) {
 		/** This function sends message to all devices. */
 
-		for (SocketAddress userSocketAddress : userList) 
-			sendToUser(message, userSocketAddress);		
+		for (SocketAddress userSocketAddress : userList)
+			sendToUser(message, userSocketAddress);
 	}
 
 	private void playSong(String songName) throws StationException,
 			IOException, InterruptedException {
-		/* Establish a socket connection and play song with String songName */
+		/** Establish a socket connection and play song with String songName */
 
 		// Check to see if song is on songSourceMap
 		if (!songSourceMap.containsKey(songName))
@@ -392,34 +471,28 @@ public class Station implements Runnable {
 		if (address.contains("/"))
 			address = address.replaceFirst("/", "");
 
-		/* Send command to device to play song */
-		String[] commandElements = { Networking.PLAY_SONG_CMD, songName };
-		String command = MessageBuilder.buildMessage(commandElements,
-				Networking.SEPERATOR);
-		sendToUser(command, songSource);
-
 		/* Send notification to all devices of current song playing */
 		String[] notificationElements = {
 				Networking.CURRENTLY_PLAYING_NOTIFIER, stationName, songName,
 				songSource.toString() };
 		String notification = MessageBuilder.buildMessage(notificationElements,
 				Networking.SEPERATOR);
-		//sendMulticastMessage(notification);
+		// sendMulticastMessage(notification);
 		sendToAll(notification);
 
 		/* Display station queue status */
-		log("Instructed user at \"" + address + "\" to play \"" + songName
+		log("Instructed station users " + "to play \"" + songName
 				+ "\". Song length = " + songLengthMap.get(songName)
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
-		
+
 		Thread.sleep(songLength);
 	}
 
 	private void log(String message) {
 		/** This function displays log messages on the console. */
 
-		String logMessage = "[" + stationName + "] station log: " + message;
+		String logMessage = "[" + stationName + " station log] : " + message;
 		System.out.println(logMessage);
 	}
 }

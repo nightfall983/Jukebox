@@ -5,7 +5,7 @@ import java.net.UnknownHostException;
 
 public final class Networking {
 	/* Commands To Devices */
-	public static final String PLAY_SONG_CMD = "/play_song";
+	public static final String SEND_SONG_CMD = "/send_song";
 
 	/* Commands from devices */
 	public static final String JOIN_STATION_CMD = "/join_station";
@@ -29,6 +29,7 @@ public final class Networking {
 
 	/* Notifications to server */
 	public static final String EXIT_JUKEBOX_NOTIFIER = "/jukebox_user_exit";
+	public static final String SONG_DOWNLOADED_NOTIFIER = "/song_downloaded";
 
 	/* Response to devices */
 	public static final String SONG_ON_LIST_RESPONSE = "/song_on_list";
@@ -44,7 +45,7 @@ public final class Networking {
 	public static final String JUKEBOX_MESSAGE_IDENTIFIER = "/";
 
 	/* Server IP address */
-	public static final String SERVER_IP_STRING = "192.168.206.87";
+	public static final String SERVER_IP_STRING = "192.168.1.143";
 
 	/* Server port */
 	public static final int SERVER_PORT = 61001;

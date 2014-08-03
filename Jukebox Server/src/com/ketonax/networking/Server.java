@@ -31,7 +31,7 @@ public class Server {
 	static DatagramSocket udpServerSocket = null;
 
 	public static void main(String[] args) {
-		System.out.println("Jukebox server has started.");
+		System.out.println("Jukebox server has started.\n");
 
 		stationList = new LinkedList<Station>();
 		stationMap = new HashMap<String, Station>();
@@ -98,6 +98,18 @@ public class Server {
 						String stationName = messageArray[1];
 						Station targetStation = stationMap.get(stationName);
 						targetStation.sendPlaylist(userSocketAddress);
+					} else if (messageArray[0]
+							.equals(Networking.SONG_DOWNLOADED_NOTIFIER)) {
+
+						log("Received SONG_DOWNLOADED_NOTIFIER from user at "+ userSocketAddress);
+
+						String stationName = messageArray[1];
+						try {
+							songDownloadedNotifier(userSocketAddress,
+									stationName);
+						} catch (ServerException e) {
+							e.printStackTrace();
+						}
 					} else {
 						System.err.println("Unrecognized message \""
 								+ userMessage + "\" passed to the server from"
@@ -120,12 +132,12 @@ public class Server {
 							}
 						currentStationMap.remove(userSocketAddress);
 					}
-					
+
 					log("User at " + userSocketAddress + " has disconnected.");
 				} else if (userMessage
 						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
-					
-					if(!allUsers.contains(userSocketAddress))
+
+					if (!allUsers.contains(userSocketAddress))
 						allUsers.add(userSocketAddress);
 
 					sendStationList(userSocketAddress);
@@ -169,8 +181,8 @@ public class Server {
 		 */
 		if (currentStationMap.containsKey(userAddress)) {
 			Station oldStation = currentStationMap.get(userAddress);
-			
-			if(stationName.equals(oldStation.getName()))
+
+			if (stationName.equals(oldStation.getName()))
 				throw new ServerException(stationName
 						+ " station already on stationList.");
 
@@ -210,11 +222,11 @@ public class Server {
 		if (!stationMap.containsKey(stationName)) {
 			throw new ServerException("User at " + userSocketAddress
 					+ " attempted to join nonexistent station: " + stationName);
-		} else {			
+		} else {
 			/* Add user if the user is not on the allUsers list */
 			if (!allUsers.contains(userSocketAddress))
 				allUsers.add(userSocketAddress);
-			
+
 			Station targetStation = stationMap.get(stationName);
 
 			/* Check for user's old station */
@@ -270,6 +282,23 @@ public class Server {
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
 			}
+		}
+	}
+
+	public static void songDownloadedNotifier(SocketAddress userSocketAddress,
+			String stationName) throws ServerException {
+		/**
+		 * This method increments a variable in the station that checks whether
+		 * the a song has been downloaded.
+		 */
+
+		Station targetStation = stationMap.get(stationName);
+		if (targetStation != null)
+			targetStation.incrementSongDownloaded();
+		else {
+			throw new ServerException("User at " + userSocketAddress
+					+ " sent notification to nonexistent station \""
+					+ stationName + "\"");
 		}
 	}
 
@@ -398,7 +427,7 @@ public class Server {
 	private static void log(String message) {
 		/** This function displays log messages on the console. */
 
-		String logMessage = "Server log: " + message;
+		String logMessage = "[Server log]: " + message;
 		System.out.println(logMessage);
 	}
 }

@@ -2,27 +2,15 @@ package com.ketonax.jukebox.Util;
 /**
  * Created by haoyang on 7/24/14.
  */
-import java.io.FileDescriptor;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import android.content.Context;
+import android.database.Cursor;
+import android.graphics.BitmapFactory.Options;
+import android.provider.MediaStore;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-
-import android.content.ContentResolver;
-import android.content.ContentUris;
-import android.content.Context;
-import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.BitmapFactory.Options;
-import android.net.Uri;
-import android.os.ParcelFileDescriptor;
-import android.provider.MediaStore;
-
-import com.ketonax.jukebox.R;
 
 public class MediaUtil {
     //private static final Uri albumArtUri = Uri.parse("content://media/external/audio/albumart");
@@ -66,10 +54,13 @@ public class MediaUtil {
                 mp3Info.setDuration(duration);
                 mp3Info.setSize(size);
                 mp3Info.setUrl(url);
-                //Add mp3Info object into List mp3Infos
+
+                /* Add mp3Info object into List mp3Infos */
                 mp3Infos.add(mp3Info);
             }
         }
+
+        cursor.close();
         return mp3Infos;
     }
 
