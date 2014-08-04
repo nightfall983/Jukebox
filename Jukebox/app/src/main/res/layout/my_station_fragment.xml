@@ -3,32 +3,38 @@
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_width="wrap_content"
+    android:layout_height="fill_parent"
+    android:orientation="vertical"
     android:paddingBottom="@dimen/activity_vertical_margin"
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".MainActivity$CreateStationFragment">
 
-    <ListView
-        android:id="@+id/song_queue_id"
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="442dp">
-    </ListView>
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/add_parent_id"
+        android:id="@+id/list_parent_id"
+        android:paddingTop="@dimen/activity_vertical_margin">
+        <ListView
+            android:id="@+id/song_queue_id"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+        </ListView>
+        </RelativeLayout>
 
     <RelativeLayout
+        android:id="@+id/add_parent_id"
         android:layout_width="fill_parent"
-        android:layout_height="match_parent"
-        android:layout_alignParentBottom="true"
-        android:layout_below="@+id/song_queue_id">
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true">
 
         <ImageView
             android:id="@+id/add_music_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentTop="true"
             android:layout_centerHorizontal="true"
             android:onClick="searchLocalMusic"
             android:src="@drawable/ic_action_new"/>
