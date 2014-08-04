@@ -149,7 +149,8 @@ public class Station implements Runnable {
 		/** This function adds a user to the station user list. */
 		if (!userList.contains(userAddress)) {
 			userList.add(userAddress);
-			log("User at \"" + userAddress + "\" has joined.");
+			log("User at \"" + userAddress + "\" has joined."
+					+ " User list size = " + userList.size());
 
 			try {
 				sendPlaylist(userAddress);
@@ -492,7 +493,7 @@ public class Station implements Runnable {
 	private void log(String message) {
 		/** This function displays log messages on the console. */
 
-		String logMessage = "[" + stationName + " station log] : " + message;
+		String logMessage = "[" + stationName + " station log]: " + message;
 		System.out.println(logMessage);
 	}
 }

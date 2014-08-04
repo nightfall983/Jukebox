@@ -23,6 +23,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
@@ -304,6 +305,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
         }
 
         createStationEdit.setText(null);
+
+        /* Hide the keyboard */
+        InputMethodManager inputManager = (InputMethodManager)
+                getSystemService(Context.INPUT_METHOD_SERVICE);
+
+        inputManager.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(),
+                InputMethodManager.HIDE_NOT_ALWAYS);
     }
 
     public void searchLocalMusic(View view) {
@@ -472,8 +480,11 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
         public void showStationListView(final View rootView) {
 
             stationListView = (ListView) rootView.findViewById(R.id.station_list_view);
+            stationListView.addHeaderView(new View(getActivity()));
+            stationListView.addFooterView(new View(getActivity()));
+
             stationAdapter = new ArrayAdapter<String>(getActivity(),
-                    android.R.layout.simple_list_item_1, android.R.id.text1);
+                    R.layout.list_item_card, R.id.text1);
             stationAdapter.addAll(stationList);
 
             if (stationListView == null) {
@@ -486,7 +497,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                                         long l) {
 
                 /* Send message to service to send JOIN_STATION_CMD */
-                    String stationName = stationList.get(position);
+                    String stationName = stationList.get(position - 1);
                     joinStation(stationName);
                 }
             });
