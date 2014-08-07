@@ -87,19 +87,21 @@ public class Station implements Runnable {
 						currentSong = song;
 
 						/* Wait for 1 second, then play the next song */
-						//Thread.sleep(1000); // Not sure why, but fixes
-											// songLengthMap
-											// // issue.
+						// Thread.sleep(1000); // Not sure why, but fixes
+						// songLengthMap
+						// // issue.
 
 						/*
 						 * Send notification to song holder to send the current
 						 * song to users on the station.
 						 */
-						SocketAddress holderSongAddress = songSourceMap
+						SocketAddress songHolderAddress = songSourceMap
 								.get(song);
 						String command = Networking.buildSendSongCommand(
 								stationName, song);
-						sendToUser(command, holderSongAddress);
+						sendToUser(command, songHolderAddress);
+						log("Instructed user at address \"" + songHolderAddress
+								+ "\" to send \"" + song + "\"to station users.");
 
 						/*
 						 * Wait for notification from users that song has been
@@ -357,7 +359,7 @@ public class Station implements Runnable {
 		 */
 
 		resetDownloadedCount();
-		log("readyToPlay started."); //TODO
+		// log("readyToPlay started."); //TODO test
 
 		if (isPlaying == false) {
 			/* Timer */
@@ -394,8 +396,8 @@ public class Station implements Runnable {
 
 	public void startPlaybackTimer() throws StationException,
 			InterruptedException {
-		
-		log("playback timer started."); //TODO
+
+		// log("playback timer started."); //TODO
 
 		if (!songLengthMap.containsKey(currentSong))
 			throw new StationException(
@@ -408,7 +410,7 @@ public class Station implements Runnable {
 		int songLength;
 		try {
 			songLength = getSongLength(currentSong);
-			log(Integer.toString(songLength)); //TODO
+			// log(Integer.toString(songLength)); //TODO test
 			for (; trackPosition < songLength; trackPosition++) {
 				Thread.sleep(1);
 			}
@@ -420,7 +422,7 @@ public class Station implements Runnable {
 		}
 		// removeSong(currentSong); //TODO
 		isPlaying = false;
-		log("playback timer stopped.");
+		// log("playback timer stopped.");
 	}
 
 	/* Networking dependent functions */
@@ -536,17 +538,25 @@ public class Station implements Runnable {
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
 		startPlaybackTimer();
-		removeSong(currentSong); // TODO
+		removeSong(currentSong);
 	}
 
 	private void notifyCurrentlyPlaying() {
 		SocketAddress songSource = songSourceMap.get(currentSong);
 
-		/* Send notification to all devices of current song playing */
-		String notification = Networking.buildCurrentlyPlayingNotifier(
-				stationName, currentSong, songSource.toString(),
-				Integer.toString(0));
-		sendToAll(notification);
+		for (SocketAddress user : userList) {
+
+			int userLatency = 0;
+			if (latencyMap.containsKey(user))
+				userLatency = latencyMap.get(user);
+			int startPosition = 0;
+
+			/* Send notification to all devices of current song playing */
+			String notification = Networking.buildCurrentlyPlayingNotifier(
+					stationName, currentSong, songSource.toString(),
+					Integer.toString(startPosition + userLatency));
+			sendToUser(notification, user);
+		}
 	}
 
 	@SuppressWarnings("unused")
