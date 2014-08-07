@@ -6,6 +6,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
@@ -27,9 +28,13 @@ public class Station implements Runnable {
 	private Queue<String> songsPlayedQueue = null;
 	private Map<String, Integer> songLengthMap = null;
 	private Map<String, SocketAddress> songSourceMap = null;
+	private Map<String, Integer> latencyMap = null;
 	private InetAddress groupAddress = null;
 
-	private int playSongTimeout = 30; // Seconds
+	private boolean isPlaying = false;
+	private String currentSong = null;
+	private int trackPosition = 0;
+	private int playSongTimeout = 60; // Seconds
 	private int currentSongDownloadCount = 0;
 	private boolean stopRunning = false;
 
@@ -49,6 +54,7 @@ public class Station implements Runnable {
 		songsPlayedQueue = new ConcurrentLinkedQueue<String>();
 		songLengthMap = new ConcurrentHashMap<String, Integer>();
 		songSourceMap = new ConcurrentHashMap<String, SocketAddress>();
+		latencyMap = new HashMap<String, Integer>();
 
 		try {
 			log("User at " + userSocketAddres + " has created station: "
@@ -70,50 +76,51 @@ public class Station implements Runnable {
 			if (userList.isEmpty()) {
 				halt();
 			}
-
 			Iterator<String> it = songQueue.iterator();
 
 			while (it.hasNext() && !userList.isEmpty()) {
-				String song = it.next();
-				try {
 
-					/* Wait for 1 second, then play the next song */
-					Thread.sleep(1000); // Not sure why, but fixes songLengthMap
-										// // issue.
+				if (isPlaying == false) {
+					String song = it.next();
+					try {
 
-					/*
-					 * Send notification to song holder to download the current
-					 * song.
-					 */
-					SocketAddress holderSongAddress = songSourceMap.get(song);
-					String[] elements = { Networking.SEND_SONG_CMD,
-							stationName, song };
-					String command = MessageBuilder.buildMessage(elements,
-							Networking.SEPERATOR);
-					sendToUser(command, holderSongAddress);
+						currentSong = song;
 
-					/*
-					 * Wait for notification from users that song has been
-					 * downloaded or timeout has occured.
-					 */
-					boolean beginPlay = readyToPlay();
+						/* Wait for 1 second, then play the next song */
+						//Thread.sleep(1000); // Not sure why, but fixes
+											// songLengthMap
+											// // issue.
 
-					if (beginPlay == true)
-						playSong(song);
+						/*
+						 * Send notification to song holder to send the current
+						 * song to users on the station.
+						 */
+						SocketAddress holderSongAddress = songSourceMap
+								.get(song);
+						String command = Networking.buildSendSongCommand(
+								stationName, song);
+						sendToUser(command, holderSongAddress);
 
-				} catch (StationException e) {
-					e.printStackTrace();
-				} catch (IOException e) {
-					e.printStackTrace();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+						/*
+						 * Wait for notification from users that song has been
+						 * downloaded or timeout has occured.
+						 */
+						boolean beginPlay = readyToPlay();
+
+						if (beginPlay == true)
+							playSong(song);
+
+					} catch (StationException e) {
+						e.printStackTrace();
+					} catch (IOException e) {
+						e.printStackTrace();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+
+					songsPlayedQueue.add(song);
+					// it.remove();
 				}
-
-				songsPlayedQueue.add(song);
-				songRemovedNotifier(song);
-				log("The song \"" + song
-						+ "\" has been removed from station queue");
-				it.remove();
 			}
 		}
 
@@ -145,50 +152,73 @@ public class Station implements Runnable {
 		return stationName;
 	}
 
-	public void addUser(SocketAddress userAddress) throws StationException {
+	public void addUser(SocketAddress userSocketAddress)
+			throws StationException {
 		/** This function adds a user to the station user list. */
-		if (!userList.contains(userAddress)) {
-			userList.add(userAddress);
-			log("User at \"" + userAddress + "\" has joined."
+
+		if (!userList.contains(userSocketAddress)) {
+			userList.add(userSocketAddress);
+			log("User at \"" + userSocketAddress + "\" has joined."
 					+ " User list size = " + userList.size());
 
 			try {
-				sendPlaylist(userAddress);
-				sendUserList(userAddress);
+				sendPlaylist(userSocketAddress);
+				sendUserList(userSocketAddress);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 
-			String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
-					userAddress.toString() };
-			String notification = MessageBuilder.buildMessage(elements,
-					Networking.SEPERATOR);
+			String notification = Networking.buildUserAddedNotifier(
+					stationName, userSocketAddress.toString());
 			// sendMulticastMessage(notification);
 			sendToAll(notification);
+
+			/*
+			 * If user is added while the current song is playing tell song
+			 * holder to send the song to the user.
+			 */
+			if (isPlaying) {
+				SocketAddress songHolder = getSongSource(currentSong);
+				if (!songHolder.toString().equals(userSocketAddress.toString())) {
+					String downloadSongCommand = Networking
+							.buildSendSongToUserCommand(stationName,
+									currentSong, userSocketAddress);
+					sendToUser(downloadSongCommand, songHolder);
+				} else
+					try {
+						playSongCatchUp(currentSong, userSocketAddress);
+					} catch (IOException e) {
+						e.printStackTrace();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+			}
 		} else
 			throw new StationException("User is already on the list");
 	}
 
-	public void removeUser(SocketAddress userAddress) throws StationException {
+	public void removeUser(SocketAddress userSocketAddress)
+			throws StationException {
 		/**
 		 * This function removes a user from userList. Note that the user might
 		 * still be responsible for streaming songs to other devices in the
 		 * background.
 		 */
 
-		if (!userList.contains(userAddress))
-			throw new StationException("User (Address: " + userAddress
+		if (!userList.contains(userSocketAddress))
+			throw new StationException("User (Address: " + userSocketAddress
 					+ ") is not on station (Station Name: " + stationName
 					+ ") list.");
-		userList.remove(userAddress);
+		userList.remove(userSocketAddress);
+		latencyMap.remove(userSocketAddress);
 
 		String[] elements = { Networking.USER_REMOVED_NOTIFIER, stationName,
-				userAddress.toString() };
+				userSocketAddress.toString() };
 		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
+				Networking.SEPARATOR);
 		// sendMulticastMessage(notification);
 		sendToAll(notification);
-		log("User at " + userAddress + " has been removed."
+		log("User at " + userSocketAddress + " has been removed."
 				+ " User list size = " + userList.size());
 	}
 
@@ -242,10 +272,8 @@ public class Station implements Runnable {
 		songSourceMap.remove(songName);
 		songLengthMap.remove(songName);
 
-		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName,
-				songName };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
+		String notification = Networking.buildSongRemovedNotifier(stationName,
+				songName);
 		// sendMulticastMessage(notification);
 		sendToAll(notification);
 		log(songName + " has been removed from the station."
@@ -266,7 +294,7 @@ public class Station implements Runnable {
 		/** Returns the song length in milliseconds */
 
 		if (!songLengthMap.containsKey(songName))
-			throw new StationException("In function getSongSource(), \""
+			throw new StationException("In function getSongLength(), \""
 					+ songName + "\" is not on songLengthMap.");
 
 		return songLengthMap.get(songName);
@@ -282,10 +310,8 @@ public class Station implements Runnable {
 		 */
 
 		String data = null;
-		for (String s : songQueue) {
-			String[] elements = { Networking.SONG_ON_LIST_RESPONSE,
-					stationName, s };
-			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
+		for (String songName : songQueue) {
+			data = Networking.buildSongOnListResponse(stationName, songName);
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -297,7 +323,25 @@ public class Station implements Runnable {
 		currentSongDownloadCount++;
 	}
 
-	private void resetCount() {
+	public void notifyLateDownload(SocketAddress userSocketAddress) {
+		try {
+			if (isPlaying == true)
+				playSongCatchUp(currentSong, userSocketAddress);
+		} catch (StationException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void latencyUpdate(SocketAddress userSocketAddress, int latency) {
+		latencyMap.put(userSocketAddress.toString(), latency);
+		// log(Integer.toString(latency)); // TODO test
+	}
+
+	private void resetDownloadedCount() {
 		/**
 		 * This method resets a counter that keeps track of how many times the
 		 * current song has been downloaded.
@@ -312,29 +356,71 @@ public class Station implements Runnable {
 		 * matches the userList size.
 		 */
 
-		resetCount();
+		resetDownloadedCount();
+		log("readyToPlay started."); //TODO
 
-		/* Timer */
-		int timeLeft = playSongTimeout - 1;
-		while (timeLeft >= 0) {
-			/*
-			 * Check to see that all users have downloaded the song (except the
-			 * song holder).
-			 */
+		if (isPlaying == false) {
+			/* Timer */
+			int timeLeft = playSongTimeout - 1;
+			while (timeLeft >= 0) {
+				/*
+				 * Check to see that all users have downloaded the song (except
+				 * the song holder).
+				 */
 
-			if (currentSongDownloadCount == userList.size() - 1)
-				break;
-			else {
-				timeLeft--;
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+				if (currentSongDownloadCount == userList.size() - 1)
+					break;
+				else {
+					timeLeft--;
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
 				}
 			}
-		}
+			return true;
+		} else
+			return false;
+	}
 
-		return true;
+	public boolean songIsPlaying() {
+		return isPlaying;
+	}
+
+	public void resetTrackPosition() {
+		trackPosition = 0;
+	}
+
+	public void startPlaybackTimer() throws StationException,
+			InterruptedException {
+		
+		log("playback timer started."); //TODO
+
+		if (!songLengthMap.containsKey(currentSong))
+			throw new StationException(
+					"No song length information for the current song \""
+							+ currentSong + "\"");
+
+		isPlaying = true;
+		resetTrackPosition();
+
+		int songLength;
+		try {
+			songLength = getSongLength(currentSong);
+			log(Integer.toString(songLength)); //TODO
+			for (; trackPosition < songLength; trackPosition++) {
+				Thread.sleep(1);
+			}
+			// log(Integer.toString(trackPosition)); //TODO test
+		} catch (StationException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		// removeSong(currentSong); //TODO
+		isPlaying = false;
+		log("playback timer stopped.");
 	}
 
 	/* Networking dependent functions */
@@ -344,10 +430,8 @@ public class Station implements Runnable {
 		 * sends the socket address of the user to the devices.
 		 */
 
-		String[] elements = { Networking.USER_ADDED_NOTIFIER, stationName,
-				addedUserSocketAddress.toString() };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
+		String notification = Networking.buildUserAddedNotifier(stationName,
+				addedUserSocketAddress.toString());
 		// sendMulticastMessage(notification);
 		sendToAll(notification);
 		log("User at " + addedUserSocketAddress
@@ -360,23 +444,8 @@ public class Station implements Runnable {
 		 * the queue.
 		 */
 
-		String[] elements = { Networking.SONG_ADDED_NOTIFIER, songName };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
-		// sendMulticastMessage(notification);
-		sendToAll(notification);
-	}
-
-	public void songRemovedNotifier(String songName) {
-		/**
-		 * This function notifies all devices that a new song has been removed
-		 * to the queue.
-		 */
-
-		String[] elements = { Networking.SONG_REMOVED_NOTIFIER, stationName,
-				songName };
-		String notification = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
+		String notification = Networking.buildSongAddedNotifier(stationName,
+				songName);
 		// sendMulticastMessage(notification);
 		sendToAll(notification);
 	}
@@ -392,9 +461,8 @@ public class Station implements Runnable {
 
 		String data = null;
 		for (SocketAddress user : userList) {
-			String[] elements = { Networking.USER_ON_LIST_RESPONSE,
-					stationName, user.toString() };
-			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
+			data = Networking.buildUserOnListResponse(stationName,
+					user.toString());
 			sendToUser(data, userSocketAddress);
 		}
 
@@ -405,14 +473,9 @@ public class Station implements Runnable {
 	private void sendToUser(String message, SocketAddress userSocketAddress) {
 		/** Sends a message to a specified device. */
 
-		// Parse userSocketAddress
-		String userAddress[] = userSocketAddress.toString().split(":");
-		String userIPString = userAddress[0];
-		int userPort = Integer.parseInt(userAddress[1]);
+		String userIPString = Networking.getIPString(userSocketAddress);
+		int userPort = Networking.getPort(userSocketAddress);
 
-		// Check to see if userIP contains '/' and remove it
-		if (userIPString.startsWith("/"))
-			userIPString = userIPString.replaceFirst("/", "");
 		InetAddress userIP = null;
 		try {
 			userIP = InetAddress.getByName(userIPString);
@@ -456,38 +519,74 @@ public class Station implements Runnable {
 
 	private void playSong(String songName) throws StationException,
 			IOException, InterruptedException {
-		/** Establish a socket connection and play song with String songName */
+		/**
+		 * Establish a socket connection and tell all users to play song with
+		 * String songName from the beginning
+		 */
 
 		// Check to see if song is on songSourceMap
 		if (!songSourceMap.containsKey(songName))
 			throw new StationException("In function playSong(), \"" + songName
 					+ "\" is not on songSourceMap.");
 
-		int songLength = getSongLength(songName);
-		SocketAddress songSource = getSongSource(songName);
-
-		// Parse songSource to get IP address and port
-		String sourceArray[] = songSource.toString().split(":");
-		String address = sourceArray[0];
-		if (address.contains("/"))
-			address = address.replaceFirst("/", "");
-
-		/* Send notification to all devices of current song playing */
-		String[] notificationElements = {
-				Networking.CURRENTLY_PLAYING_NOTIFIER, stationName, songName,
-				songSource.toString() };
-		String notification = MessageBuilder.buildMessage(notificationElements,
-				Networking.SEPERATOR);
-		// sendMulticastMessage(notification);
-		sendToAll(notification);
-
+		notifyCurrentlyPlaying();
 		/* Display station queue status */
 		log("Instructed station users " + "to play \"" + songName
 				+ "\". Song length = " + songLengthMap.get(songName)
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
+		startPlaybackTimer();
+		removeSong(currentSong); // TODO
+	}
 
-		Thread.sleep(songLength);
+	private void notifyCurrentlyPlaying() {
+		SocketAddress songSource = songSourceMap.get(currentSong);
+
+		/* Send notification to all devices of current song playing */
+		String notification = Networking.buildCurrentlyPlayingNotifier(
+				stationName, currentSong, songSource.toString(),
+				Integer.toString(0));
+		sendToAll(notification);
+	}
+
+	@SuppressWarnings("unused")
+	private void playSongCatchUp(String songName,
+			SocketAddress userSocketAddress) throws StationException,
+			IOException, InterruptedException {
+		/**
+		 * Establish a socket connection and tells a specific user to play song
+		 * at the current trackPosition
+		 */
+
+		// Check to see if song is on songSourceMap
+		if (!songSourceMap.containsKey(songName))
+			throw new StationException("In function playSongCatchUp(), \""
+					+ songName + "\" is not on songSourceMap.");
+
+		int songLength = getSongLength(songName);
+		SocketAddress songSource = getSongSource(songName);
+
+		/* Send notification to a devices about current song playing */
+		int userLatency = 0;
+		if (latencyMap.containsKey(userSocketAddress.toString()))
+			userLatency = latencyMap.get(userSocketAddress.toString());
+		else
+			log("Latency map doesn't contain address: " + userSocketAddress);
+
+		int startPosition = trackPosition;
+		String notification = Networking.buildCurrentlyPlayingNotifier(
+				stationName, songName, songSource.toString(),
+				Integer.toString(startPosition + userLatency));
+		// sendMulticastMessage(notification);
+		sendToUser(notification, userSocketAddress);
+
+		/* Display station queue status */
+		log("Instructed user at address \"" + userSocketAddress
+				+ "\" to play \"" + songName + "\". Start position = "
+				+ startPosition + ". Latency factor = " + userLatency
+				+ ". Song length = " + songLengthMap.get(songName)
+				+ "ms. Songs played = " + songsPlayedQueue.size()
+				+ ". Songs on queue = " + songQueue.size());
 	}
 
 	private void log(String message) {

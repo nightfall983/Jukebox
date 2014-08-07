@@ -1,11 +1,14 @@
 package com.ketonax.Constants;
 
+import com.ketonax.Networking.MessageBuilder;
+
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
@@ -16,6 +19,7 @@ import java.util.Enumeration;
 public final class Networking {
     /* Commands from server */
     public static final String SEND_SONG_CMD = "/send_song";
+    public static final String SEND_SONG_TO_USER_CMD = "/send_song_to_user";
 
     /* Commands to server */
     public static final String CREATE_STATION_CMD = "/new_station";
@@ -43,6 +47,10 @@ public final class Networking {
     public static final String USER_ON_LIST_RESPONSE = "/user_on_list";
     public static final String SONG_ON_LIST_RESPONSE = "/song_on_list";
 
+    /* Ping Communication */
+    public static final String PING = "/ping";
+    public static final String PING_RESPONSE = "/ping_response";
+
     /* Separator string */
     public static final String SEPARATOR = ",";
 
@@ -53,7 +61,7 @@ public final class Networking {
     public static final int DATA_LIMIT_SIZE = 1024;
 
     /* Server IP address */
-    public static final String SERVER_IP_STRING = "192.168.1.143";
+    public static final String SERVER_IP_STRING = "192.168.206.87";
 
     /* Server port */
     public static final int SERVER_PORT = 61001;
@@ -141,5 +149,211 @@ public final class Networking {
             e.printStackTrace();
         }
         return groupAddress;
+    }
+
+    public static String getIPString(SocketAddress socketAddress) {
+
+		/* Parse userSocketAddress */
+        String address[] = socketAddress.toString().split(":");
+        String ipString = address[0];
+
+		/* Check to see if userIP contains '/' and remove it */
+        if (ipString.startsWith("/"))
+            ipString = ipString.replaceFirst("/", "");
+
+        return ipString;
+    }
+
+    public static int getPort(SocketAddress socketAddress) {
+
+        String address[] = socketAddress.toString().split(":");
+        int userPort = Integer.parseInt(address[1]);
+
+        return userPort;
+    }
+
+    public static String buildSendSongCommand(String stationName, String songName) {
+
+        String[] elements = { SEND_SONG_CMD, stationName, songName };
+        MessageBuilder.buildMessage(elements, SEPARATOR);
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildSendSongToUserCommand(String stationName, String songName, SocketAddress userSocketAddress){
+
+        String destIP = getIPString(userSocketAddress);
+        String[] elements = {SEND_SONG_TO_USER_CMD, stationName, songName, destIP};
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+        return message;
+    }
+
+    public static String buildJoinStationCommand(String stationName) {
+
+        String[] elements = { JOIN_STATION_CMD, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildLeaveStationCommand(String stationName) {
+
+        String[] elements = { LEAVE_STATION_CMD, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildAddSongCommand(String stationName, String songName,
+                                             String songLength) {
+
+        String[] elements = { ADD_SONG_CMD, stationName, songName, songLength };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildGetPlaylistCommand(String stationName) {
+
+        String[] elements = { GET_PLAYLIST_CMD, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildCreateStationCommand(String stationName) {
+
+        String[] elements = { CREATE_STATION_CMD, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildStationListRequestCommand() {
+
+        String[] elements = { STATION_LIST_REQUEST_CMD };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildStationListRequestResponse(String stationName) {
+
+        String[] elements = { STATION_LIST_REQUEST_RESPONSE, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildStationKilledNotifier(String stationName) {
+
+        String[] elements = { STATION_KILLED_NOTIFIER, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildStationAddedNotifier(String stationName) {
+
+        String[] elements = { STATION_ADDED_NOTIFIER, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildSongAddedNotifier(String stationName,
+                                                String songName) {
+
+        String[] elements = { SONG_ADDED_NOTIFIER, stationName, songName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildSongRemovedNotifier(String stationName,
+                                                  String songName) {
+
+        String[] elements = { SONG_REMOVED_NOTIFIER, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildUserAddedNotifier(String stationName,
+                                                String userSocketAddress) {
+
+        String[] elements = { USER_ADDED_NOTIFIER, stationName,
+                userSocketAddress };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildUserRemovedNotifier(String stationName,
+                                                  String userSocketAddress) {
+
+        String[] elements = { USER_REMOVED_NOTIFIER, stationName,
+                userSocketAddress };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildCurrentlyPlayingNotifier(String stationName,
+                                                       String songName, String holderSocketAddress, String songPosition) {
+
+        String[] elements = { CURRENTLY_PLAYING_NOTIFIER, stationName,
+                songName, holderSocketAddress, songPosition };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildExitJukeboxNotifier() {
+
+        String[] elements = { EXIT_JUKEBOX_NOTIFIER };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildSongDownloadedNotifier(String stationName) {
+
+        String[] elements = { SONG_DOWNLOADED_NOTIFIER, stationName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildSongOnListResponse(String stationName,
+                                                 String songName) {
+
+        String[] elements = { SONG_ON_LIST_RESPONSE, stationName, songName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildUserOnListResponse(String stationName,
+                                                 String userSocketAddress) {
+
+        String[] elements = { USER_ON_LIST_RESPONSE, stationName,
+                userSocketAddress };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+
+        return message;
+    }
+
+    public static String buildPingMessage() {
+        return PING;
+    }
+
+    public static String buildPingResponse() {
+
+        String[] elements = { PING_RESPONSE };
+
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+        return message;
     }
 }

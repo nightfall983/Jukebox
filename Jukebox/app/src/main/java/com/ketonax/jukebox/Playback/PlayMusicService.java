@@ -7,7 +7,7 @@ import android.content.Intent;
 import android.media.MediaPlayer;
 import android.os.IBinder;
 
-import com.ketonax.jukebox.Activity.MainActivity;
+import com.ketonax.jukebox.Activities.MainActivity;
 import com.ketonax.jukebox.R;
 
 import java.io.IOException;
@@ -16,6 +16,7 @@ public class PlayMusicService extends Service {
 
     public static String SONG_NAME = "song name";
     public static String PATH_TO_SONG = "path to song";
+    public static String TRACK__POSITION = "track position";
     private MediaPlayer mediaPlayer;
     private boolean isPlaying;
     private static int classID = 579;
@@ -33,8 +34,9 @@ public class PlayMusicService extends Service {
 
         String songName = intent.getStringExtra(SONG_NAME);
         String songPath = intent.getStringExtra(PATH_TO_SONG);
+        int trackPosition = intent.getIntExtra(TRACK__POSITION, 0);
         if(songName != null && songPath != null)
-            play(songName, songPath);
+            play(songName, songPath, trackPosition);
 
         return Service.START_STICKY;
     }
@@ -44,7 +46,7 @@ public class PlayMusicService extends Service {
         stop();
     }
 
-    private void play(String songName, String path) {
+    private void play(String songName, String path, int trackPosition) {
         /** Start playing music */
 
         isPlaying = true;
@@ -65,9 +67,10 @@ public class PlayMusicService extends Service {
         try {
             mediaPlayer.setDataSource(path);
             mediaPlayer.prepare();
+            mediaPlayer.seekTo(trackPosition);
             mediaPlayer.start();
 
-            /* Remove notificatio if music stops */
+            /* Remove notification if music stops */
             mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
                 public void onCompletion(MediaPlayer mediaPlayer) {

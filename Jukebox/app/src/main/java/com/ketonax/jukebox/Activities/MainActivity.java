@@ -1,4 +1,4 @@
-package com.ketonax.jukebox.Activity;
+package com.ketonax.jukebox.Activities;
 
 import android.app.ActionBar;
 import android.app.Activity;
@@ -179,12 +179,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
 
     @Override
     public void onBackPressed() {
-        try {
+        /*try {
             exitJukebox();
             doUnbindService();
         } catch (Throwable t) {
             Log.e("MainActivity", "Failed to unbind from the service", t);
-        }
+        }*/
         super.onBackPressed();
     }
 
@@ -307,8 +307,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
         createStationEdit.setText(null);
 
         /* Hide the keyboard */
-        InputMethodManager inputManager = (InputMethodManager)
-                getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager inputManager = (InputMethodManager) getSystemService(Context
+                .INPUT_METHOD_SERVICE);
 
         inputManager.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(),
                 InputMethodManager.HIDE_NOT_ALWAYS);
@@ -329,13 +329,14 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
     }
     /* End of button methods */
 
-    public void startPlayback(String songName, String songPath) {
+    public void startPlayback(String songName, String songPath, int trackPosition) {
 
         /* Stop any currently playing song */
         stopPlayback();
         Intent intent = new Intent(getApplicationContext(), PlayMusicService.class);
         intent.putExtra(PlayMusicService.SONG_NAME, songName);
         intent.putExtra(PlayMusicService.PATH_TO_SONG, songPath);
+        intent.putExtra(PlayMusicService.TRACK__POSITION, trackPosition);
         startService(intent);
     }
 
@@ -379,7 +380,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
         /** Delete a directory.
          * @param dir: The directory to be deleted */
 
-         if (dir != null && dir.isDirectory()) {
+        if (dir != null && dir.isDirectory()) {
             String[] children = dir.list();
             for (int i = 0; i < children.length; i++) {
                 boolean success = deleteDir(new File(dir, children[i]));
@@ -483,8 +484,8 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
             stationListView.addHeaderView(new View(getActivity()));
             stationListView.addFooterView(new View(getActivity()));
 
-            stationAdapter = new ArrayAdapter<String>(getActivity(),
-                    R.layout.list_item_card, R.id.text1);
+            stationAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item_card,
+                    R.id.text1);
             stationAdapter.addAll(stationList);
 
             if (stationListView == null) {
@@ -523,12 +524,13 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
             userIPList.clear();
             udpPortMap.clear();
 
-            /* Stop music playback */
-            stopPlayback();
-
             if (currentStation != null) {
-
                 if (!currentStation.equals(stationName)) {
+
+                    /* Stop music playback */
+                    stopPlayback();
+
+                    /* Switch to new station */
                     currentStation = stationName;
                     Message msg = Message.obtain(null, AppConstants.JOIN_STATION_CMD);
                     Bundle bundle = new Bundle();
@@ -543,6 +545,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
 
                     Toast.makeText(getActivity(), "Joining " + stationName,
                             Toast.LENGTH_SHORT).show();
+
                 } else {
                     Toast.makeText(getActivity(), "You are already connected to this station ",
                             Toast.LENGTH_SHORT).show();
@@ -826,11 +829,16 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String userIP = bundle.getString(AppConstants.USER_IP_KEY);
                     int udpPort = bundle.getInt(AppConstants.USER_UDP_PORT_KEY);
-                    if (currentStation.equals(stationName)) {
-                        userIPList.remove(userIP);
-                        udpPortMap.remove(userIP);
-                        Log.i(AppConstants.APP_TAG, "Removed user at " + userIP + " from station " +
-                                "user list.");
+
+                    if (currentStation != null) {
+                        if (currentStation.equals(stationName)) {
+                            userIPList.remove(userIP);
+                            udpPortMap.remove(userIP);
+                            Log.i(AppConstants.APP_TAG, "Removed user at " + userIP + " from " +
+                                    "station " +
+
+                                    "user list.");
+                        }
                     }
                 }
                 break;
@@ -856,6 +864,7 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String ownerIP = bundle.getString(AppConstants.USER_IP_KEY);
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    int trackPosition = bundle.getInt(AppConstants.TRACK_POSITION_KEY);
 
                     if (stationName.equals(currentStation)) {
 
@@ -866,12 +875,12 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                             String songPath = song.getUrl();
 
                         /* Start playing song */
-                            startPlayback(songName, songPath);
+                            startPlayback(songName, songPath, trackPosition);
                         } else {
                             String songPath = stationQueueMap.get(songName);
 
                         /* Start playing song */
-                            startPlayback(songName, songPath);
+                            startPlayback(songName, songPath, trackPosition);
                         }
                         Log.i(AppConstants.APP_TAG, songName + " is currently playing on station:" +
                                 " " + currentStation);
@@ -904,6 +913,25 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                     }
                 }
                 break;
+                case AppConstants.SEND_SONG_TO_USER_CMD: {
+                    Bundle bundle = msg.getData();
+                    String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    String destIP = bundle.getString(AppConstants.USER_IP_KEY);
+
+                    Log.i(AppConstants.APP_TAG, "Received " + Networking.SEND_SONG_TO_USER_CMD +
+                            " from " +
+                            "station: " + stationName);
+
+
+                        /* Send song to destination device */
+                    Mp3Info song = musicMap.get(songName);
+                    NetworkingService.sendSong(destIP, song);
+
+                    Log.i(AppConstants.APP_TAG, "Sending song to user \"" + destIP + "\" on " +
+                            stationName);
+                }
+                break;
                 case AppConstants.SONG_DOWNLOADED: {
                     Bundle bundle = msg.getData();
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
@@ -934,6 +962,20 @@ public class MainActivity extends Activity implements NavigationDrawerFragment
                             " to station:" + currentStation);
                 }
                 break;
+                case AppConstants.PING: {
+                    Bundle bundle = new Bundle();
+                    bundle.putString(AppConstants.PING_RESPONSE_KEY, Networking.buildPingResponse
+                            ());
+                    Message msgResponse = Message.obtain(null, AppConstants.PING_RESPONSE);
+                    msgResponse.setData(bundle);
+                    if (mService != null) {
+                        try {
+                            mService.send(msgResponse);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
             }
         }
     }

@@ -1,4 +1,4 @@
-package com.ketonax.jukebox.Activity;
+package com.ketonax.jukebox.Activities;
 
 
 import android.app.ActionBar;

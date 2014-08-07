@@ -13,6 +13,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.ketonax.constants.Networking;
 import com.ketonax.station.Station;
@@ -21,10 +23,17 @@ import com.ketonax.station.StationException;
 public class Server {
 
 	/* Variables */
-	static ArrayList<SocketAddress> allUsers = new ArrayList<SocketAddress>();
-	static Queue<Station> stationList = null;
-	static Map<String, Station> stationMap = null;
-	static Map<SocketAddress, Station> currentStationMap = null;
+	private static Queue<SocketAddress> allUsers = new ConcurrentLinkedQueue<SocketAddress>();
+	private static Queue<Station> stationList = null;
+	private static Map<String, Station> stationMap = null;
+	private static Map<SocketAddress, Station> currentStationMap = null;
+	private static Map<SocketAddress, Boolean> pingResponseMap = null;
+	private static Map<SocketAddress, Integer> latencyMap = null;
+	private static Map<SocketAddress, Integer> pingCountMap = null;
+	private static Map<SocketAddress, ArrayList<Integer>> latencySampleSizeMap = null;
+	private static int totalPingSampleSize = 100;
+	private static int latencyTime = 0; // Milliseconds
+	private static boolean pingStarted = false;
 
 	/* Networking */
 	static InetAddress groupAddress = null;
@@ -36,7 +45,15 @@ public class Server {
 		stationList = new LinkedList<Station>();
 		stationMap = new HashMap<String, Station>();
 		currentStationMap = new HashMap<SocketAddress, Station>();
+		pingResponseMap = new ConcurrentHashMap<SocketAddress, Boolean>();
+		latencyMap = new ConcurrentHashMap<SocketAddress, Integer>();
+		pingCountMap = new ConcurrentHashMap<SocketAddress, Integer>();
+		latencySampleSizeMap = new ConcurrentHashMap<SocketAddress, ArrayList<Integer>>();
 
+		startServer();
+	}
+
+	private static void startServer() {
 		try {
 			udpServerSocket = new DatagramSocket(Networking.SERVER_PORT);
 			groupAddress = Networking.getGroupAddress();
@@ -61,23 +78,15 @@ public class Server {
 
 					if (messageArray[0].equals(Networking.CREATE_STATION_CMD)) {
 						String stationName = messageArray[1];
+						createStation(stationName, userSocketAddress);
 
-						try {
-							createStation(stationName, userSocketAddress);
-						} catch (ServerException e) {
-							System.err.println(e.getMessage());
-						}
 					} else if (messageArray[0].equals(Networking.ADD_SONG_CMD)) {
 						String stationName = messageArray[1];
 						String songName = messageArray[2];
 						int songLength = Integer.parseInt(messageArray[3]);
+						addSongToStation(userSocketAddress, stationName,
+								songName, songLength);
 
-						try {
-							addSongToStation(userSocketAddress, stationName,
-									songName, songLength);
-						} catch (ServerException e) {
-							System.out.println(e.getMessage());
-						}
 					} else if (messageArray[0]
 							.equals(Networking.LEAVE_STATION_CMD)) {
 
@@ -87,11 +96,8 @@ public class Server {
 							.equals(Networking.JOIN_STATION_CMD)) {
 
 						String stationName = messageArray[1];
-						try {
-							joinStation(userSocketAddress, stationName);
-						} catch (ServerException e) {
-							e.printStackTrace();
-						}
+						joinStation(userSocketAddress, stationName);
+
 					} else if (messageArray[0]
 							.equals(Networking.GET_PLAYLIST_CMD)) {
 
@@ -101,44 +107,27 @@ public class Server {
 					} else if (messageArray[0]
 							.equals(Networking.SONG_DOWNLOADED_NOTIFIER)) {
 
-						log("Received SONG_DOWNLOADED_NOTIFIER from user at "+ userSocketAddress);
+						log("Received SONG_DOWNLOADED_NOTIFIER from user at "
+								+ userSocketAddress);
 
 						String stationName = messageArray[1];
-						try {
-							songDownloadedNotifier(userSocketAddress,
-									stationName);
-						} catch (ServerException e) {
-							e.printStackTrace();
-						}
+						songDownloadedNotifier(userSocketAddress, stationName);
+
 					} else {
 						System.err.println("Unrecognized message \""
 								+ userMessage + "\" passed to the server from"
 								+ userSocketAddress);
 					}
+				} else if (userMessage.equals(Networking.PING_RESPONSE)) {
+					pingResponseMap.put(userSocketAddress, true);
 				} else if (userMessage.equals(Networking.EXIT_JUKEBOX_NOTIFIER)) {
 
-					if (allUsers.contains(userSocketAddress))
-						allUsers.remove(userSocketAddress);
-					if (currentStationMap.containsKey(userSocketAddress)) {
-						Station targetStation = currentStationMap
-								.get(userSocketAddress);
-
-						if (targetStation.hasUser(userSocketAddress))
-							try {
-								/* Remove user from their current station */
-								targetStation.removeUser(userSocketAddress);
-							} catch (StationException e) {
-								e.printStackTrace();
-							}
-						currentStationMap.remove(userSocketAddress);
-					}
-
-					log("User at " + userSocketAddress + " has disconnected.");
+					removeUserFromServer(userSocketAddress);
 				} else if (userMessage
 						.equals(Networking.STATION_LIST_REQUEST_CMD)) {
 
-					if (!allUsers.contains(userSocketAddress))
-						allUsers.add(userSocketAddress);
+					/* Add user to ALL_USERS list */
+					addUserToServer(userSocketAddress);
 
 					sendStationList(userSocketAddress);
 					log("Station list sent to " + userSocketAddress);
@@ -166,47 +155,148 @@ public class Server {
 			System.err.println(e.getMessage());
 		} catch (IOException e) {
 			System.err.println(e.getMessage());
+		} catch (ServerException e) {
+			e.printStackTrace();
+		} catch (StationException e) {
+			e.printStackTrace();
 		} finally {
 			udpServerSocket.close();
 		}
 	}
 
+	private static void addUserToServer(SocketAddress userSocketAddress) {
+
+		/* Add user to ALL_USERS list */
+		if (!allUsers.contains(userSocketAddress))
+			allUsers.add(userSocketAddress);
+
+		if (!latencyMap.containsKey(userSocketAddress))
+			latencyMap.put(userSocketAddress, 0);
+
+		if (!pingCountMap.containsKey(userSocketAddress))
+			pingCountMap.put(userSocketAddress, 0);
+
+		if (!pingResponseMap.containsKey(userSocketAddress))
+			pingResponseMap.put(userSocketAddress, false);
+
+		if (!latencySampleSizeMap.containsKey(userSocketAddress)) {
+			ArrayList<Integer> pingValuesList = new ArrayList<Integer>(
+					totalPingSampleSize);
+			initPingArray(pingValuesList);
+			latencySampleSizeMap.put(userSocketAddress, pingValuesList);
+		}
+
+		/* Start pinging devices. */
+		if (pingStarted == false)
+			startPinging();
+	}
+
+	private static void initPingArray(ArrayList<Integer> pingValuesList) {
+		for (int i = 0; i < totalPingSampleSize; i++)
+			pingValuesList.add(i, 0);
+	}
+
+	private static void removeUserFromServer(SocketAddress userSocketAddress)
+			throws StationException {
+
+		if (allUsers.contains(userSocketAddress))
+			allUsers.remove(userSocketAddress);
+
+		if (pingCountMap.containsKey(userSocketAddress))
+			pingCountMap.remove(userSocketAddress);
+
+		if (pingResponseMap.containsKey(userSocketAddress))
+			pingResponseMap.remove(userSocketAddress);
+
+		if (latencyMap.containsKey(userSocketAddress))
+			latencyMap.remove(userSocketAddress);
+
+		if (latencySampleSizeMap.containsKey(userSocketAddress))
+			latencySampleSizeMap.remove(userSocketAddress);
+
+		if (currentStationMap.containsKey(userSocketAddress)) {
+			Station targetStation = currentStationMap.get(userSocketAddress);
+
+			if (targetStation.hasUser(userSocketAddress))
+				/* Remove user from their current station */
+				targetStation.removeUser(userSocketAddress);
+
+			currentStationMap.remove(userSocketAddress);
+		}
+
+		log("User at " + userSocketAddress + " has disconnected.");
+	}
+
+	private static void startPinging() {
+
+		log("Pinging started.");
+		pingStarted = true;
+
+		Thread pingerThread = new Thread() {
+			Iterator<SocketAddress> it;
+			SocketAddress user;
+
+			public void run() {
+				while (true) {
+					it = allUsers.iterator();
+					while (it.hasNext()) {
+						String pingMessage = Networking.buildPingMessage();
+						user = (SocketAddress) it.next();
+						if (allUsers.contains(user))
+							sendToUser(pingMessage, user);
+						startLatencyTimer(user);
+
+						try {
+							sleep(1000);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+		};
+
+		pingerThread.start();
+	}
+
 	private static void createStation(String stationName,
-			SocketAddress userAddress) throws ServerException {
+			SocketAddress userSocketAddress) throws ServerException {
 		/** Creates a new Station and runs it in a new thread. */
+
+		/* Add user if the user is not on the allUsers list */
+		if (!allUsers.contains(userSocketAddress))
+			addUserToServer(userSocketAddress);
 
 		/*
 		 * Check if the creator is currently in a different station. If so,
 		 * remove creator from that station.
 		 */
-		if (currentStationMap.containsKey(userAddress)) {
-			Station oldStation = currentStationMap.get(userAddress);
+		if (currentStationMap.containsKey(userSocketAddress)) {
+			Station oldStation = currentStationMap.get(userSocketAddress);
 
 			if (stationName.equals(oldStation.getName()))
 				throw new ServerException(stationName
 						+ " station already on stationList.");
 
 			try {
-				if (oldStation.hasUser(userAddress))
-					oldStation.removeUser(userAddress);
+				if (oldStation.hasUser(userSocketAddress))
+					oldStation.removeUser(userSocketAddress);
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
 			}
 
 			/* Remove map to the old station */
-			currentStationMap.remove(userAddress);
+			currentStationMap.remove(userSocketAddress);
 		}
 
-		/* Add user to ALL_USERS list */
-		if (!allUsers.contains(userAddress))
-			allUsers.add(userAddress);
-
 		if (!stationMap.containsKey(stationName)) {
-			Station station = new Station(stationName, userAddress,
+			Station station = new Station(stationName, userSocketAddress,
 					udpServerSocket);
+			int userLatency = latencyMap.get(userSocketAddress);
+			station.latencyUpdate(userSocketAddress, userLatency);
 			stationList.add(station);
 			stationMap.put(station.getName(), station);
-			currentStationMap.put(userAddress, station);
+			currentStationMap.put(userSocketAddress, station);
 
 			/* Start new station thread and notify user of station creation */
 			new Thread(station).start();
@@ -225,7 +315,7 @@ public class Server {
 		} else {
 			/* Add user if the user is not on the allUsers list */
 			if (!allUsers.contains(userSocketAddress))
-				allUsers.add(userSocketAddress);
+				addUserToServer(userSocketAddress);
 
 			Station targetStation = stationMap.get(stationName);
 
@@ -244,6 +334,8 @@ public class Server {
 			currentStationMap.put(userSocketAddress, targetStation);
 			try {
 				targetStation.addUser(userSocketAddress);
+				int userLatency = latencyMap.get(userSocketAddress);
+				targetStation.latencyUpdate(userSocketAddress, userLatency);
 			} catch (StationException e) {
 				System.err.println(e.getMessage());
 			}
@@ -293,13 +385,72 @@ public class Server {
 		 */
 
 		Station targetStation = stationMap.get(stationName);
-		if (targetStation != null)
-			targetStation.incrementSongDownloaded();
-		else {
+		if (targetStation != null) {
+			if (!targetStation.songIsPlaying())
+				targetStation.incrementSongDownloaded();
+			else {
+				int latency = latencyMap.get(userSocketAddress);
+				targetStation.latencyUpdate(userSocketAddress, latency);
+				targetStation.notifyLateDownload(userSocketAddress);
+			}
+		} else {
 			throw new ServerException("User at " + userSocketAddress
 					+ " sent notification to nonexistent station \""
 					+ stationName + "\"");
 		}
+	}
+
+	private static void startLatencyTimer(final SocketAddress userSocketAddress) {
+
+		for (latencyTime = 0; latencyTime < 10000; latencyTime++) {
+			if (pingResponseMap.containsKey(userSocketAddress)) {
+				if (pingResponseMap.get(userSocketAddress) == true) {
+					int pingCount = pingCountMap.get(userSocketAddress);
+					pingCount = pingCount % totalPingSampleSize;
+
+					pingCount++;
+					pingCountMap.put(userSocketAddress, pingCount);
+
+					ArrayList<Integer> pingValuesList = latencySampleSizeMap
+							.get(userSocketAddress);
+					pingValuesList.remove(pingCount - 1); // Remove old
+					pingValuesList.add(pingCount - 1, latencyTime);
+
+					// log(Integer.toString(pingValuesList.get(pingCount - 1)));
+					// //TODO test
+
+					latencySampleSizeMap.put(userSocketAddress, pingValuesList);
+					int averageLatency = getAverageLatency(userSocketAddress);
+					latencyMap.put(userSocketAddress, averageLatency);
+					break;
+				}
+			}
+
+			try {
+				Thread.sleep(1);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		// log(Integer.toString(latencyMap.get(userSocketAddress))); // TODO
+		// Test
+		/* Reset the ping response boolean for this user */
+		pingResponseMap.put(userSocketAddress, false);
+	}
+
+	private static int getAverageLatency(SocketAddress userSocketAddress) {
+
+		int averageLatency = 0;
+		ArrayList<Integer> pingValuesList = latencySampleSizeMap
+				.get(userSocketAddress);
+		int pingSize = pingCountMap.get(userSocketAddress);
+		for (int i = 0; i < pingSize; i++)
+			averageLatency += pingValuesList.get(i);
+
+		averageLatency /= pingSize;
+		// log("Average latency for user at \"" + userSocketAddress + "\" is: "
+		// + Integer.toString(averageLatency)); // TODO test
+		return averageLatency;
 	}
 
 	@SuppressWarnings("unused")
@@ -312,14 +463,8 @@ public class Server {
 	private static void sendStationList(SocketAddress userSocketAddress) {
 		/** Sends the a list of the station names to user */
 
-		// Parse userSocketAddress
-		String userAddress[] = userSocketAddress.toString().split(":");
-		String userIPString = userAddress[0];
-		int userPort = Integer.parseInt(userAddress[1]);
-
-		// Check to see if userIP contains '/' and remove it
-		if (userIPString.startsWith("/"))
-			userIPString = userIPString.replaceFirst("/", "");
+		String userIPString = Networking.getIPString(userSocketAddress);
+		int userPort = Networking.getPort(userSocketAddress);
 
 		InetAddress userIP = null;
 		try {
@@ -333,12 +478,10 @@ public class Server {
 		DatagramPacket sendPacket = null;
 
 		for (Station s : stationList) {
-			String name = s.getName();
+			String stationName = s.getName();
 
 			/* Create data string and convert it to bytes */
-			String[] elements = { Networking.STATION_LIST_REQUEST_RESPONSE,
-					name };
-			data = MessageBuilder.buildMessage(elements, Networking.SEPERATOR);
+			data = Networking.buildStationListRequestResponse(stationName);
 			sendData = data.getBytes();
 
 			/* Send data packet */
@@ -355,10 +498,8 @@ public class Server {
 	private static void sendStationKilledNotifier(Station station) {
 		/** Sends a notifier that a station has been killed */
 
-		String[] elements = { Networking.STATION_KILLED_NOTIFIER,
-				station.getName() };
-		String message = MessageBuilder.buildMessage(elements,
-				Networking.SEPERATOR);
+		String message = Networking.buildStationKilledNotifier(station
+				.getName());
 		// sendMulticastMessage(message);
 		sendToAll(message);
 		log("Notified all users that " + station.getName() + " has terminated.");
@@ -370,8 +511,8 @@ public class Server {
 		 * includes the station name.
 		 */
 
-		String message = Networking.STATION_ADDED_NOTIFIER + ","
-				+ station.getName();
+		String message = Networking
+				.buildStationAddedNotifier(station.getName());
 		// sendMulticastMessage(message);
 		sendToAll(message);
 	}
@@ -391,19 +532,40 @@ public class Server {
 		}
 	}
 
+	private static void sendToUser(String message,
+			SocketAddress userSocketAddress) {
+		/** Sends a message to a specified device. */
+
+		String userIPString = Networking.getIPString(userSocketAddress);
+		int userPort = Networking.getPort(userSocketAddress);
+
+		InetAddress userIP = null;
+		try {
+			userIP = InetAddress.getByName(userIPString);
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		}
+
+		byte[] sendData = null;
+		sendData = message.getBytes();
+		DatagramPacket sendPacket = new DatagramPacket(sendData,
+				sendData.length, userIP, userPort);
+
+		try {
+			udpServerSocket.send(sendPacket);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 	private static void sendToAll(String message) {
 		/** Send message to all devices in allUsers */
 
 		for (SocketAddress sa : allUsers) {
 
-			// Parse user socket address (sa)
-			String userAddress[] = sa.toString().split(":");
-			String userIPString = userAddress[0];
-			int userPort = Integer.parseInt(userAddress[1]);
+			String userIPString = Networking.getIPString(sa);
+			int userPort = Networking.getPort(sa);
 
-			// Check to see if userIP contains '/' and remove it
-			if (userIPString.contains("/"))
-				userIPString = userIPString.replace("/", "");
 			InetAddress userIP = null;
 			try {
 				userIP = InetAddress.getByName(userIPString);

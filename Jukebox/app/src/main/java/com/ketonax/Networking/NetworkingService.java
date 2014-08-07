@@ -54,6 +54,7 @@ public class NetworkingService extends Service {
     private DatagramSocket udpSocket = null;
     private MulticastSocket multicastSocket = null;
     private InetAddress serverAddress = null;
+    private String currentStation;
 
     public NetworkingService() {
 
@@ -391,6 +392,7 @@ public class NetworkingService extends Service {
                             String stationName = msgArray[1];
                             String currentSongPlaying = msgArray[2];
                             String songHolderAddress[] = msgArray[3].split(":");
+                            int trackPosition = Integer.parseInt(msgArray[4]);
                             String songHolderIPString = songHolderAddress[0];
 
                             // Check to see if userIP contains '/' and remove it
@@ -403,6 +405,7 @@ public class NetworkingService extends Service {
                             bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
                             bundle.putString(AppConstants.SONG_NAME_KEY, currentSongPlaying);
                             bundle.putString(AppConstants.USER_IP_KEY, songHolderIPString);
+                            bundle.putInt(AppConstants.TRACK_POSITION_KEY, trackPosition);
                             msg.setData(bundle);
                             try {
                                 if (mClient != null) {
@@ -419,6 +422,24 @@ public class NetworkingService extends Service {
                             Bundle bundle = new Bundle();
                             bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
                             bundle.putString(AppConstants.SONG_NAME_KEY, songName);
+                            msg.setData(bundle);
+                            try {
+                                if (mClient != null) {
+                                    mClient.send(msg);
+                                }
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        } else if (msgArray[0].equals(Networking.SEND_SONG_TO_USER_CMD)) {
+                            Log.i(AppConstants.APP_TAG, "Received send song command.");
+                            String stationName = msgArray[1];
+                            String songName = msgArray[2];
+                            String destinationIP = msgArray[3];
+                            Message msg = Message.obtain(null, AppConstants.SEND_SONG_TO_USER_CMD);
+                            Bundle bundle = new Bundle();
+                            bundle.putString(AppConstants.STATION_NAME_KEY, stationName);
+                            bundle.putString(AppConstants.SONG_NAME_KEY, songName);
+                            bundle.putString(AppConstants.USER_IP_KEY, destinationIP);
                             msg.setData(bundle);
                             try {
                                 if (mClient != null) {
@@ -463,6 +484,15 @@ public class NetworkingService extends Service {
                                 if (mClient != null) {
                                     mClient.send(msg);
                                 }
+                            } catch (RemoteException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    } else if (message.equals(Networking.PING)) {
+                        Message msg = Message.obtain(null, AppConstants.PING);
+                        if (mClient != null) {
+                            try {
+                                mClient.send(msg);
                             } catch (RemoteException e) {
                                 e.printStackTrace();
                             }
@@ -615,6 +645,7 @@ public class NetworkingService extends Service {
         private boolean isConnected = false;
         private FileEvent fileEvent;
         private File downloadedFile;
+        private File cacheDir;
         private FileOutputStream fileOutputStream = null;
 
         public TCP_Receiver() {
@@ -658,13 +689,16 @@ public class NetworkingService extends Service {
                     Log.e(AppConstants.APP_TAG, "Download error occurred");
                 } else {
                     String fileName = fileEvent.getFilename();
-                    downloadedFile = File.createTempFile(fileName, null,
-                            getApplicationContext().getCacheDir());
+                    //downloadedFile = File.createTempFile(fileName, null,
+                            //getApplicationContext().getCacheDir());
+                    cacheDir = new File(getApplicationContext().getCacheDir(), fileName);
+                    cacheDir.mkdirs();
+                    downloadedFile = new File(cacheDir, fileName);
 
-                        /* Save downloaded file */
+                    /* Save downloaded file */
                     saveFile();
 
-                        /* Give MainActivity the song name and path */
+                    /* Give MainActivity the song name and path */
                     songDownloadedNotifier();
                 }
             } catch (ClassNotFoundException e) {
@@ -678,9 +712,12 @@ public class NetworkingService extends Service {
             /** Writes file to temporary cache storage if it doesn't already exist.*/
 
             try {
-                fileOutputStream = new FileOutputStream(downloadedFile);
-                fileOutputStream.write(fileEvent.getFileData());
-                fileOutputStream.close();
+                if(!downloadedFile.exists()) {
+                    downloadedFile.createNewFile();
+                    fileOutputStream = new FileOutputStream(downloadedFile);
+                    fileOutputStream.write(fileEvent.getFileData());
+                    fileOutputStream.close();
+                }
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
@@ -734,8 +771,8 @@ public class NetworkingService extends Service {
                 case AppConstants.CREATE_STATION_CMD: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String[] elements = {Networking.CREATE_STATION_CMD, stationName};
-                    messageToSend = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    currentStation = stationName;
+                    messageToSend = Networking.buildCreateStationCommand(stationName);
                     sender.send(messageToSend);
                 }
                 break;
@@ -747,17 +784,17 @@ public class NetworkingService extends Service {
                 case AppConstants.JOIN_STATION_CMD: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String[] elements = {Networking.JOIN_STATION_CMD, stationName};
-                    messageToSend = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    currentStation = stationName;
+                    messageToSend = Networking.buildJoinStationCommand(stationName);
                     sender.send(messageToSend);
                 }
                 break;
                 case AppConstants.LEAVE_STATION_CMD: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String[] elements = {Networking.LEAVE_STATION_CMD, stationName};
-                    messageToSend = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    messageToSend = Networking.buildLeaveStationCommand(stationName);
                     sender.send(messageToSend);
+                    currentStation = null;
                 }
                 break;
                 case AppConstants.ADD_SONG_CMD: {
@@ -765,34 +802,37 @@ public class NetworkingService extends Service {
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
                     String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
                     String songLength = bundle.getString(AppConstants.SONG_LENGTH_KEY);
-                    String[] elements = {Networking.ADD_SONG_CMD, stationName, songName,
-                            songLength};
-                    messageToSend = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    messageToSend = Networking.buildAddSongCommand(stationName, songName,
+                            songLength);
                     sender.send(messageToSend);
                 }
                 break;
                 case AppConstants.GET_PLAYLIST_CMD: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String[] elements = {Networking.GET_PLAYLIST_CMD, stationName};
-                    messageToSend = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    messageToSend = Networking.buildGetPlaylistCommand(stationName);
                     sender.send(messageToSend);
                 }
                 break;
                 case AppConstants.SONG_DOWNLOADED_NOTIFIER: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String[] elements = {Networking.SONG_DOWNLOADED_NOTIFIER, stationName};
-                    String notifier = MessageBuilder.buildMessage(elements, Networking.SEPARATOR);
+                    String notifier = Networking.buildSongDownloadedNotifier(stationName);
                     sender.send(notifier);
                 }
                 break;
                 case AppConstants.EXIT_JUKEBOX_NOTIFIER: {
                     Bundle bundle = msg.getData();
-                    String exitCommand = Networking.EXIT_JUKEBOX_NOTIFIER;
+                    String exitCommand = Networking.buildExitJukeboxNotifier();
                     sender.send(exitCommand);
+                    currentStation = null;
                 }
                 break;
+                case AppConstants.PING_RESPONSE: {
+                    Bundle bundle = msg.getData();
+                    String response = bundle.getString(AppConstants.PING_RESPONSE_KEY);
+                    sender.send(response);
+                }
             }
         }
     }
