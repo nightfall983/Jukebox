@@ -79,11 +79,6 @@ public class Station implements Runnable {
 
 				currentSong = songQueue.element();
 				try {
-					removeSong(currentSong);
-				} catch (StationException e) {
-					e.printStackTrace();
-				}
-				try {
 
 					/* Wait for 1 second, then play the next song */
 					Thread.sleep(1000);
@@ -94,6 +89,7 @@ public class Station implements Runnable {
 					 */
 					preparePlayback();
 					playSong(currentSong);
+					songsPlayedQueue.add(currentSong);
 
 				} catch (StationException e) {
 					e.printStackTrace();
@@ -102,8 +98,6 @@ public class Station implements Runnable {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-
-				songsPlayedQueue.add(currentSong);
 			}
 		}
 
@@ -394,8 +388,6 @@ public class Station implements Runnable {
 	public void startPlaybackTimer() throws StationException,
 			InterruptedException {
 
-		// log("playback timer started."); //TODO
-
 		if (!songLengthMap.containsKey(currentSong))
 			throw new StationException(
 					"No song length information for the current song \""
@@ -406,13 +398,14 @@ public class Station implements Runnable {
 		isPlaying = true;
 
 		final Timer timer = new Timer();
-		log("Playback timer started.");
+		//log("Playback timer started."); TODO test
 		timer.scheduleAtFixedRate(new TimerTask() {
 			public void run() {
 				++trackPosition;
 				if (trackPosition == songLength) {
 					timer.cancel();
 					isPlaying = false;
+					
 					log("playback timer stopped");
 				}
 			}
@@ -534,6 +527,8 @@ public class Station implements Runnable {
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
 		startPlaybackTimer();
+		Thread.sleep(getSongLength(currentSong));
+		removeSong(currentSong);
 	}
 
 	private void notifyCurrentlyPlaying() {
