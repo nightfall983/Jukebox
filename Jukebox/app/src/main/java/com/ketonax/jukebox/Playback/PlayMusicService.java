@@ -67,8 +67,8 @@ public class PlayMusicService extends Service {
         try {
             mediaPlayer.setDataSource(path);
             mediaPlayer.prepare();
-            mediaPlayer.seekTo(trackPosition);
             mediaPlayer.start();
+            mediaPlayer.seekTo(trackPosition);
 
             /* Remove notification if music stops */
             mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {

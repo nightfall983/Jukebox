@@ -79,6 +79,11 @@ public class Station implements Runnable {
 
 				currentSong = songQueue.element();
 				try {
+					removeSong(currentSong);
+				} catch (StationException e) {
+					e.printStackTrace();
+				}
+				try {
 
 					/* Wait for 1 second, then play the next song */
 					Thread.sleep(1000);
@@ -162,7 +167,7 @@ public class Station implements Runnable {
 							.buildSendSongToUserCommand(stationName,
 									currentSong, userSocketAddress);
 					sendToUser(downloadSongCommand, songHolder);
-				} else
+				} else {
 					try {
 						playSongCatchUp(currentSong, userSocketAddress);
 					} catch (IOException e) {
@@ -170,6 +175,7 @@ public class Station implements Runnable {
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
+				}
 			}
 		} else
 			throw new StationException("User is already on the list");
@@ -288,7 +294,7 @@ public class Station implements Runnable {
 	}
 
 	public void sendPlaylist(SocketAddress userSocketAddress)
-			throws IOException {
+			throws IOException, StationException {
 		/**
 		 * This function sends each song on the playlist to a user. This
 		 * function should only be used if the playlist is explicitly requested
@@ -300,10 +306,27 @@ public class Station implements Runnable {
 		for (String songName : songQueue) {
 			data = Networking.buildSongOnListResponse(stationName, songName);
 			sendToUser(data, userSocketAddress);
-		}
 
-		log("Songs on station queue have been sent to the user at "
-				+ userSocketAddress);
+			/*
+			 * If user is added while the current song is playing tell song
+			 * holder to send the song to the user.
+			 */
+			if (isPlaying) {
+				if (songName.equals(currentSong))
+					continue;
+
+				SocketAddress songHolder = getSongSource(songName);
+				if (!songHolder.toString().equals(userSocketAddress.toString())) {
+					String downloadSongCommand = Networking
+							.buildSendSongToUserCommand(stationName,
+									songName, userSocketAddress);
+					sendToUser(downloadSongCommand, songHolder);
+				}
+			}
+
+			log("Songs on station queue have been sent to the user at "
+					+ userSocketAddress);
+		}
 	}
 
 	public void notifyDownloaded(SocketAddress userSocketAddress,
@@ -312,9 +335,9 @@ public class Station implements Runnable {
 		log("User at \"" + userSocketAddress + "\" has finished downloading "
 				+ songName + ".");
 		try {
-			if (isPlaying == true && songName.equals(currentSong))
+			if (isPlaying == true && songName.equals(currentSong)) {
 				playSongCatchUp(currentSong, userSocketAddress);
-			else {
+			} else {
 				int currentDownloadCount = songDownloadedMap.get(songName);
 				songDownloadedMap.put(songName, ++currentDownloadCount);
 			}
@@ -339,7 +362,7 @@ public class Station implements Runnable {
 		 * matches the userList size.
 		 */
 
-		//log("readyToPlay started. Checking for " + currentSong); // TODO test
+		// log("readyToPlay started. Checking for " + currentSong); // TODO test
 
 		if (isPlaying == false) {
 
@@ -347,7 +370,7 @@ public class Station implements Runnable {
 			while (i < playSongTimeout) {
 				try {
 					int downloadCount = songDownloadedMap.get(currentSong);
-					//log(Integer.toString(downloadCount)); //TODO Test
+					// log(Integer.toString(downloadCount)); //TODO Test
 					if (downloadCount == userList.size() - 1)
 						break;
 					Thread.sleep(1000);
@@ -356,7 +379,7 @@ public class Station implements Runnable {
 				}
 				i++;
 			}
-			//log("readyToPlay stopped."); // TODO test
+			// log("readyToPlay stopped."); // TODO test
 		}
 	}
 
@@ -390,11 +413,6 @@ public class Station implements Runnable {
 				if (trackPosition == songLength) {
 					timer.cancel();
 					isPlaying = false;
-					try {
-						removeSong(currentSong);
-					} catch (StationException e) {
-						e.printStackTrace();
-					}
 					log("playback timer stopped");
 				}
 			}

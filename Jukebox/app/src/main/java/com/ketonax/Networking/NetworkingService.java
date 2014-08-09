@@ -817,7 +817,8 @@ public class NetworkingService extends Service {
                 case AppConstants.SONG_DOWNLOADED_NOTIFIER: {
                     Bundle bundle = msg.getData();
                     String stationName = bundle.getString(AppConstants.STATION_NAME_KEY);
-                    String notifier = Networking.buildSongDownloadedNotifier(stationName);
+                    String songName = bundle.getString(AppConstants.SONG_NAME_KEY);
+                    String notifier = Networking.buildSongDownloadedNotifier(stationName, songName);
                     sender.send(notifier);
                 }
                 break;

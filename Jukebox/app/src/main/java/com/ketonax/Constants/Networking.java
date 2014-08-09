@@ -318,9 +318,9 @@ public final class Networking {
         return message;
     }
 
-    public static String buildSongDownloadedNotifier(String stationName) {
+    public static String buildSongDownloadedNotifier(String stationName, String songName) {
 
-        String[] elements = { SONG_DOWNLOADED_NOTIFIER, stationName };
+        String[] elements = { SONG_DOWNLOADED_NOTIFIER, stationName, songName };
         String message = MessageBuilder.buildMessage(elements, SEPARATOR);
 
         return message;

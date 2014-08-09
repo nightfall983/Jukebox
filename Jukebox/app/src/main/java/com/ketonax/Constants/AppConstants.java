@@ -9,6 +9,7 @@ public final class AppConstants {
     public final static String SERVICE_CONNECTED_STATUS = "service connected status";
     public final static String STATION_LIST_KEY = "station list";
     public final static String CURRENT_STATION_KEY = "current station";
+    public final static String CURRENT_SONG_KEY = "current song";
     public final static String STATION_NAME_KEY = "station name";
     public final static String SONG_NAME_KEY = "song name";
     public final static String SONG_LENGTH_KEY = "song length";

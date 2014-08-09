@@ -13,5 +13,6 @@
     <string name="action_exit">Exit Jukebox</string>
     <string name="add_music_button">Add Music</string>
     <string name="title_choose_music">Choose Music</string>
+    <string name="current_song_playing">Listening to</string>
 
 </resources>
