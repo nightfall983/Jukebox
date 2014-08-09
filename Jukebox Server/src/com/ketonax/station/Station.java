@@ -7,18 +7,16 @@ import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.ketonax.constants.Networking;
 import com.ketonax.networking.MessageBuilder;
 
-/* TODO implement ping function to check if a device is still connected.
- * If the current song playing belongs to a device that is no longer connected then 
- * the song should be skipped */
 public class Station implements Runnable {
 
 	private String stationName;
@@ -28,14 +26,14 @@ public class Station implements Runnable {
 	private Queue<String> songsPlayedQueue = null;
 	private Map<String, Integer> songLengthMap = null;
 	private Map<String, SocketAddress> songSourceMap = null;
+	private Map<String, Integer> songDownloadedMap = null;
 	private Map<String, Integer> latencyMap = null;
 	private InetAddress groupAddress = null;
 
 	private boolean isPlaying = false;
 	private String currentSong = null;
 	private int trackPosition = 0;
-	private int playSongTimeout = 60; // Seconds
-	private int currentSongDownloadCount = 0;
+	private int playSongTimeout = 30; // Seconds
 	private boolean stopRunning = false;
 
 	public Station(String stationName, SocketAddress userSocketAddres,
@@ -54,9 +52,11 @@ public class Station implements Runnable {
 		songsPlayedQueue = new ConcurrentLinkedQueue<String>();
 		songLengthMap = new ConcurrentHashMap<String, Integer>();
 		songSourceMap = new ConcurrentHashMap<String, SocketAddress>();
+		songDownloadedMap = new ConcurrentHashMap<String, Integer>();
 		latencyMap = new HashMap<String, Integer>();
 
 		try {
+			log("Station is running.");
 			log("User at " + userSocketAddres + " has created station: "
 					+ stationName);
 			addUser(userSocketAddres);
@@ -68,61 +68,37 @@ public class Station implements Runnable {
 	public void run() {
 		/** Station controls the flow of the playlist for its users. */
 
-		log("Station is running.");
-
 		stopRunning = false;
 		while (stopRunning == false) {
 
 			if (userList.isEmpty()) {
 				halt();
 			}
-			Iterator<String> it = songQueue.iterator();
 
-			while (it.hasNext() && !userList.isEmpty()) {
+			if (isPlaying == false && !songQueue.isEmpty()) {
 
-				if (isPlaying == false) {
-					String song = it.next();
-					try {
+				currentSong = songQueue.element();
+				try {
 
-						currentSong = song;
+					/* Wait for 1 second, then play the next song */
+					Thread.sleep(1000);
 
-						/* Wait for 1 second, then play the next song */
-						// Thread.sleep(1000); // Not sure why, but fixes
-						// songLengthMap
-						// // issue.
+					/*
+					 * Wait for notification from users that song has been
+					 * downloaded or timeout has occured.
+					 */
+					preparePlayback();
+					playSong(currentSong);
 
-						/*
-						 * Send notification to song holder to send the current
-						 * song to users on the station.
-						 */
-						SocketAddress songHolderAddress = songSourceMap
-								.get(song);
-						String command = Networking.buildSendSongCommand(
-								stationName, song);
-						sendToUser(command, songHolderAddress);
-						log("Instructed user at address \"" + songHolderAddress
-								+ "\" to send \"" + song + "\"to station users.");
-
-						/*
-						 * Wait for notification from users that song has been
-						 * downloaded or timeout has occured.
-						 */
-						boolean beginPlay = readyToPlay();
-
-						if (beginPlay == true)
-							playSong(song);
-
-					} catch (StationException e) {
-						e.printStackTrace();
-					} catch (IOException e) {
-						e.printStackTrace();
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-
-					songsPlayedQueue.add(song);
-					// it.remove();
+				} catch (StationException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
+
+				songsPlayedQueue.add(currentSong);
 			}
 		}
 
@@ -224,7 +200,7 @@ public class Station implements Runnable {
 				+ " User list size = " + userList.size());
 	}
 
-	public void addSong(SocketAddress userAddress, String songName,
+	public void addSong(SocketAddress userSocketAddress, String songName,
 			int songLength) throws StationException {
 		/**
 		 * This station adds a song name to the stations song queue. It also
@@ -232,9 +208,9 @@ public class Station implements Runnable {
 		 * song name.
 		 */
 
-		if (!userList.contains(userAddress))
+		if (!userList.contains(userSocketAddress))
 			throw new StationException("Cannot add music. User (Address: "
-					+ userAddress
+					+ userSocketAddress
 					+ ") is not part of this station (Station Name: "
 					+ stationName + ").");
 
@@ -244,15 +220,24 @@ public class Station implements Runnable {
 					+ stationName + ") playlist.");
 
 		songQueue.add(songName);
-		songSourceMap.put(songName, userAddress);
+		songSourceMap.put(songName, userSocketAddress);
 		songLengthMap.put(songName, songLength);
+		songDownloadedMap.put(songName, 0);
 
 		String notification = Networking.SONG_ADDED_NOTIFIER + ","
 				+ stationName + "," + songName;
 		// sendMulticastMessage(notification);
 		sendToAll(notification);
 		log("\"" + songName + "\" has been added to the station by user at "
-				+ userAddress + "." + " Songs on queue = " + songQueue.size());
+				+ userSocketAddress + "." + " Songs on queue = "
+				+ songQueue.size());
+
+		/* Tell the user to send the song to other devices */
+		String command = Networking.buildSendSongCommand(stationName, songName);
+		sendToUser(command, userSocketAddress);
+
+		log("Instructed user at address \"" + userSocketAddress
+				+ "\" to send \"" + currentSong + "\" to station users.");
 	}
 
 	public void removeSong(String songName) throws StationException {
@@ -271,8 +256,8 @@ public class Station implements Runnable {
 					+ " is not on songLengthMap");
 
 		songQueue.remove(songName);
-		songSourceMap.remove(songName);
-		songLengthMap.remove(songName);
+		// songSourceMap.remove(songName);
+		// songLengthMap.remove(songName);
 
 		String notification = Networking.buildSongRemovedNotifier(stationName,
 				songName);
@@ -321,14 +306,18 @@ public class Station implements Runnable {
 				+ userSocketAddress);
 	}
 
-	public void incrementSongDownloaded() {
-		currentSongDownloadCount++;
-	}
+	public void notifyDownloaded(SocketAddress userSocketAddress,
+			String songName) {
 
-	public void notifyLateDownload(SocketAddress userSocketAddress) {
+		log("User at \"" + userSocketAddress + "\" has finished downloading "
+				+ songName + ".");
 		try {
-			if (isPlaying == true)
+			if (isPlaying == true && songName.equals(currentSong))
 				playSongCatchUp(currentSong, userSocketAddress);
+			else {
+				int currentDownloadCount = songDownloadedMap.get(songName);
+				songDownloadedMap.put(songName, ++currentDownloadCount);
+			}
 		} catch (StationException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -343,47 +332,32 @@ public class Station implements Runnable {
 		// log(Integer.toString(latency)); // TODO test
 	}
 
-	private void resetDownloadedCount() {
-		/**
-		 * This method resets a counter that keeps track of how many times the
-		 * current song has been downloaded.
-		 */
-		currentSongDownloadCount = 0;
-	}
-
-	private boolean readyToPlay() {
+	private void preparePlayback() {
 		/**
 		 * This method checks to see that the current song is ready to play. It
 		 * checks to see that the number of times the song has been downloaded
 		 * matches the userList size.
 		 */
 
-		resetDownloadedCount();
-		// log("readyToPlay started."); //TODO test
+		//log("readyToPlay started. Checking for " + currentSong); // TODO test
 
 		if (isPlaying == false) {
-			/* Timer */
-			int timeLeft = playSongTimeout - 1;
-			while (timeLeft >= 0) {
-				/*
-				 * Check to see that all users have downloaded the song (except
-				 * the song holder).
-				 */
 
-				if (currentSongDownloadCount == userList.size() - 1)
-					break;
-				else {
-					timeLeft--;
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
+			int i = 0;
+			while (i < playSongTimeout) {
+				try {
+					int downloadCount = songDownloadedMap.get(currentSong);
+					//log(Integer.toString(downloadCount)); //TODO Test
+					if (downloadCount == userList.size() - 1)
+						break;
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
 				}
+				i++;
 			}
-			return true;
-		} else
-			return false;
+			//log("readyToPlay stopped."); // TODO test
+		}
 	}
 
 	public boolean songIsPlaying() {
@@ -404,24 +378,28 @@ public class Station implements Runnable {
 					"No song length information for the current song \""
 							+ currentSong + "\"");
 
-		isPlaying = true;
 		resetTrackPosition();
+		final int songLength = getSongLength(currentSong);
+		isPlaying = true;
 
-		int songLength;
-		try {
-			songLength = getSongLength(currentSong);
-			// log(Integer.toString(songLength)); //TODO test
-			for (; trackPosition < songLength; trackPosition++) {
-				Thread.sleep(1);
+		final Timer timer = new Timer();
+		log("Playback timer started.");
+		timer.scheduleAtFixedRate(new TimerTask() {
+			public void run() {
+				++trackPosition;
+				if (trackPosition == songLength) {
+					timer.cancel();
+					isPlaying = false;
+					try {
+						removeSong(currentSong);
+					} catch (StationException e) {
+						e.printStackTrace();
+					}
+					log("playback timer stopped");
+				}
 			}
-			// log(Integer.toString(trackPosition)); //TODO test
-		} catch (StationException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		}, 0, 1);
 		// removeSong(currentSong); //TODO
-		isPlaying = false;
 		// log("playback timer stopped.");
 	}
 
@@ -538,7 +516,6 @@ public class Station implements Runnable {
 				+ "ms. Songs played = " + songsPlayedQueue.size()
 				+ ". Songs on queue = " + songQueue.size());
 		startPlaybackTimer();
-		removeSong(currentSong);
 	}
 
 	private void notifyCurrentlyPlaying() {

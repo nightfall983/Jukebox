@@ -75,14 +75,17 @@ public final class Networking {
 	}
 
 	public static String getIPString(SocketAddress socketAddress) {
-
+		String ipString = null;
+		
 		/* Parse userSocketAddress */
-		String address[] = socketAddress.toString().split(":");
-		String ipString = address[0];
+		if(socketAddress != null){
+			String address[] = socketAddress.toString().split(":");
+			ipString = address[0];
 
-		/* Check to see if userIP contains '/' and remove it */
-		if (ipString.startsWith("/"))
-			ipString = ipString.replaceFirst("/", "");
+			/* Check to see if userIP contains '/' and remove it */
+			if (ipString.startsWith("/"))
+				ipString = ipString.replaceFirst("/", "");
+		}
 		return ipString;
 	}
 
@@ -101,11 +104,13 @@ public final class Networking {
 		String message = MessageBuilder.buildMessage(elements, SEPARATOR);
 		return message;
 	}
-	
-	public static String buildSendSongToUserCommand(String stationName, String songName, SocketAddress userSocketAddress){
-		
+
+	public static String buildSendSongToUserCommand(String stationName,
+			String songName, SocketAddress userSocketAddress) {
+
 		String destIP = getIPString(userSocketAddress);
-		String[] elements = {SEND_SONG_TO_USER_CMD, stationName, songName, destIP};
+		String[] elements = { SEND_SONG_TO_USER_CMD, stationName, songName,
+				destIP };
 		String message = MessageBuilder.buildMessage(elements, SEPARATOR);
 		return message;
 	}
@@ -224,12 +229,12 @@ public final class Networking {
 		return message;
 	}
 
-	public static String buildSongDownloadedNotifier(String stationName) {
+    public static String buildSongDownloadedNotifier(String stationName, String songName) {
 
-		String[] elements = { SONG_DOWNLOADED_NOTIFIER, stationName };
-		String message = MessageBuilder.buildMessage(elements, SEPARATOR);
-		return message;
-	}
+        String[] elements = { SONG_DOWNLOADED_NOTIFIER, stationName, songName };
+        String message = MessageBuilder.buildMessage(elements, SEPARATOR);
+        return message;
+    }
 
 	public static String buildSongOnListResponse(String stationName,
 			String songName) {
@@ -257,7 +262,7 @@ public final class Networking {
 
 		String[] elements = { PING_RESPONSE, stationName,
 				userSocketAddress.toString() };
-		
+
 		String message = MessageBuilder.buildMessage(elements, SEPARATOR);
 		return message;
 	}

@@ -107,11 +107,10 @@ public class Server {
 					} else if (messageArray[0]
 							.equals(Networking.SONG_DOWNLOADED_NOTIFIER)) {
 
-						log("Received SONG_DOWNLOADED_NOTIFIER from user at "
-								+ userSocketAddress);
-
 						String stationName = messageArray[1];
-						songDownloadedNotifier(userSocketAddress, stationName);
+						String songName = messageArray[2];
+						songDownloadedNotifier(userSocketAddress, stationName,
+								songName);
 
 					} else {
 						System.err.println("Unrecognized message \""
@@ -378,7 +377,7 @@ public class Server {
 	}
 
 	public static void songDownloadedNotifier(SocketAddress userSocketAddress,
-			String stationName) throws ServerException {
+			String stationName, String songName) throws ServerException {
 		/**
 		 * This method increments a variable in the station that checks whether
 		 * the a song has been downloaded.
@@ -386,13 +385,9 @@ public class Server {
 
 		Station targetStation = stationMap.get(stationName);
 		if (targetStation != null) {
-			if (!targetStation.songIsPlaying())
-				targetStation.incrementSongDownloaded();
-			else {
-				int latency = latencyMap.get(userSocketAddress);
-				targetStation.latencyUpdate(userSocketAddress, latency);
-				targetStation.notifyLateDownload(userSocketAddress);
-			}
+			int latency = latencyMap.get(userSocketAddress);
+			targetStation.latencyUpdate(userSocketAddress, latency);
+			targetStation.notifyDownloaded(userSocketAddress, songName);
 		} else {
 			throw new ServerException("User at " + userSocketAddress
 					+ " sent notification to nonexistent station \""
