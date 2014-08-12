@@ -42,7 +42,7 @@ import java.net.UnknownHostException;
 public class NetworkingService extends Service {
 
     static Messenger mClient;
-    private final IBinder mBinder = new MyBinder();
+    //private final IBinder mBinder = new MyBinder();
     boolean keepRunning = true;
     private UDP_Sender sender = null;
     private UDP_Receiver receiver = null;
@@ -170,6 +170,7 @@ public class NetworkingService extends Service {
             try {
                 if (isConnected) {
                     outputStream.writeObject(fileEvent);
+                    outputStream.flush();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -716,6 +717,7 @@ public class NetworkingService extends Service {
                     downloadedFile.createNewFile();
                     fileOutputStream = new FileOutputStream(downloadedFile);
                     fileOutputStream.write(fileEvent.getFileData());
+                    fileOutputStream.flush();
                     fileOutputStream.close();
                 }
             } catch (FileNotFoundException e) {

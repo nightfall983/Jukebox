@@ -61,7 +61,7 @@ public final class Networking {
     public static final int DATA_LIMIT_SIZE = 1024;
 
     /* Server IP address */
-    public static final String SERVER_IP_STRING = "192.168.1.143";
+    public static final String SERVER_IP_STRING = "192.168.206.87";
 
     /* Server port */
     public static final int SERVER_PORT = 61001;

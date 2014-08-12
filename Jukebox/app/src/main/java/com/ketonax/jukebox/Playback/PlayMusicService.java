@@ -35,14 +35,18 @@ public class PlayMusicService extends Service {
         String songName = intent.getStringExtra(SONG_NAME);
         String songPath = intent.getStringExtra(PATH_TO_SONG);
         int trackPosition = intent.getIntExtra(TRACK__POSITION, 0);
-        if(songName != null && songPath != null)
+        if (songName != null && songPath != null) {
             play(songName, songPath, trackPosition);
+        }
 
         return Service.START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        if (mediaPlayer != null) {
+            mediaPlayer.release();
+        }
         stop();
     }
 
@@ -57,10 +61,9 @@ public class PlayMusicService extends Service {
         PendingIntent notificationIntent = PendingIntent.getActivity(this, 0, intent, 0);
 
         Notification notification = new Notification.Builder(getApplicationContext())
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText("Now playing " + songName)
-                .setSmallIcon(R.drawable.ic_launcher)
-                .setContentIntent(notificationIntent).build();
+                .setContentTitle(getString(R.string.app_name)).setContentText("Now playing " +
+                        songName).setSmallIcon(R.drawable.ic_launcher).setContentIntent
+                        (notificationIntent).build();
 
         /* Prepare media player */
         mediaPlayer = new MediaPlayer();
@@ -87,9 +90,9 @@ public class PlayMusicService extends Service {
 
     private void stop() {
 
-        if(isPlaying){
+        if (isPlaying) {
             isPlaying = false;
-            if(mediaPlayer != null){
+            if (mediaPlayer != null) {
                 mediaPlayer.release();
                 mediaPlayer = null;
             }
