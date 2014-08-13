@@ -57,7 +57,7 @@ public class MusicListAdapter extends BaseAdapter{
             vi = LayoutInflater.from(context).inflate(R.layout.text_music_list, null);
             /****** View Holder Object to contain .xml file elements ******/
             holder = new ViewHolder();
-            holder.albumImage = (ImageView) vi.findViewById(R.id.album_image);
+            //holder.albumImage = (ImageView) vi.findViewById(R.id.album_image);
             holder.musicTitle=(TextView)vi.findViewById(R.id.music_title);
             holder.musicArtist=(TextView)vi.findViewById(R.id.music_artist);
             holder.musicDuration=(TextView)vi.findViewById(R.id.music_duration);
