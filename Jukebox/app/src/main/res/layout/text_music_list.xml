@@ -5,7 +5,7 @@
     android:paddingTop="0dip" android:layout_gravity="top"
     >
     <TableRow>
-        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        <!--<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:tools="http://schemas.android.com/tools"
             android:layout_width="110dp"
             android:layout_height="match_parent"
@@ -21,9 +21,10 @@
                 android:id="@+id/album_image"
 
                 />
-        </LinearLayout>
+        </LinearLayout>-->
+
        <TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
-            android:layout_width="fill_parent"
+            android:layout_width="110dp"
             android:layout_height="wrap_content"
             android:paddingTop="0dip" android:layout_gravity="top"
             >
@@ -51,12 +52,12 @@
                     android:layout_marginLeft="10dip"
                     android:layout_marginTop="4dip"
                     android:gravity="left"/>
+
             </TableRow>
         </TableLayout>
-
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:tools="http://schemas.android.com/tools"
-            android:layout_width="110dp"
+            android:layout_width="50dp"
             android:layout_height="match_parent"
             android:paddingLeft="10dp"
             android:paddingTop="5dp"
@@ -68,7 +69,6 @@
                 android:id="@+id/music_duration"
                 android:layout_height="wrap_content"
                 android:layout_width="wrap_content"
-
                 android:layout_gravity="left|top"
                 android:scaleType="centerCrop"
                 />
